@@ -470,7 +470,7 @@ def register_routes(app: Flask) -> None:
 
         # All participants overview (admin visibility)
         participants_overview = g.db.execute(
-            'SELECT u.name, u.phone, u.password, g.name AS game_name, g.type AS game_type, t.name AS team_name, '
+            'SELECT u.id AS user_id, u.name, u.phone, u.password, g.name AS game_name, g.type AS game_type, t.name AS team_name, '
             'CASE WHEN t.leader_user_id IS NOT NULL AND u.id = t.leader_user_id THEN 1 ELSE 0 END AS is_leader '
             'FROM users u '
             'JOIN games g ON g.id = u.game_id '

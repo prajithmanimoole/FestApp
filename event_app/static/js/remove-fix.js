@@ -48,6 +48,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const phone = this.getAttribute('data-phone') || '';
             
             if (confirm(`Are you sure you want to COMPLETELY REMOVE ${userName} (${phone})?\n\nThis will remove their credentials from the database and they won't be able to login again.`)) {
+                console.log(`Attempting to remove user with ID: ${userId}`);
+                
                 // Use the complete remove API endpoint
                 fetch(`/api/complete-remove-user/${userId}`, {
                     method: 'POST',
@@ -55,8 +57,15 @@ document.addEventListener('DOMContentLoaded', function() {
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    console.log(`Response status: ${response.status}`);
+                    if (!response.ok) {
+                        throw new Error(`Server returned ${response.status}`);
+                    }
+                    return response.json();
+                })
                 .then(data => {
+                    console.log('Response data:', data);
                     if (data.success) {
                         // Reload the page to show updated data
                         window.location.reload();
@@ -66,7 +75,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('API Error:', error);
-                    alert('Failed to remove user. Please try again.');
+                    alert(`Failed to remove user: ${error.message}. Please check console for details.`);
                 });
             }
         });
