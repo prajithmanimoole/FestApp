@@ -25,7 +25,10 @@ def generate_team_code() -> str:
 
 
 def create_app() -> Flask:
-    app = Flask(__name__)
+    # Ensure template and static folders are correctly specified
+    template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'templates')
+    static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static')
+    app = Flask(__name__, template_folder=template_dir, static_folder=static_dir)
     app.secret_key = os.environ.get('SECRET_KEY', 'change-this-secret')
 
     @app.before_request
