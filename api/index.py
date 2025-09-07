@@ -87,59 +87,53 @@ def api_remove_user(user_id):
 # Complete remove handler to remove user completely from the database
 @app.route('/api/complete-remove-user/<int:user_id>', methods=['GET', 'POST'])
 def api_complete_remove_user(user_id):
-    from flask import g, redirect, url_for, flash
+    from flask import jsonify
     import sqlite3
     
-    # Get a database connection
-    conn = sqlite3.connect(os.environ['DATABASE_PATH'])
-    conn.row_factory = sqlite3.Row
-    g.db = conn
-    
     try:
+        # Get a database connection
+        conn = sqlite3.connect(os.environ['DATABASE_PATH'])
+        conn.row_factory = sqlite3.Row
+        
         # First get the user to get their phone
-        print(f"Attempting to remove user with ID: {user_id}")
-        user = g.db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        user = conn.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
         if not user:
-            print(f"User with ID {user_id} not found")
-            return {"error": "User not found"}, 404
+            conn.close()
+            return jsonify({"error": "User not found"}), 404
             
-        print(f"Found user: {user['name']} with phone: {user['phone']}")
         phone = user['phone']
         
-        # If user is leader of a team, delete team and unassign all members
-        team = g.db.execute('SELECT * FROM teams WHERE leader_user_id = ?', (user_id,)).fetchone()
-        if team:
-            print(f"User is a team leader of team: {team['name']}")
-            member_ids = [r['user_id'] for r in g.db.execute('SELECT user_id FROM team_members WHERE team_id = ?', (team['id'],)).fetchall()]
-            print(f"Team has {len(member_ids)} members to update")
-            for mid in member_ids:
-                g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (mid,))
-            g.db.execute('DELETE FROM team_members WHERE team_id = ?', (team['id'],))
-            g.db.execute('DELETE FROM teams WHERE id = ?', (team['id'],))
-        
-        # Delete from team_members if they're a member
-        print("Removing user from team_members if they're a member")
-        g.db.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
-        
-        # Now delete from users and allowed_users tables
-        print(f"Deleting user with ID {user_id} from users table")
-        g.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
-        
-        print(f"Deleting credentials for phone {phone} from allowed_users table")
-        g.db.execute('DELETE FROM allowed_users WHERE phone = ?', (phone,))
-        
-        g.db.commit()
-        print("Successfully completed user removal")
-        return {"success": True}
+        # Simple approach - do a series of DELETE statements with proper error handling
+        try:
+            # Handle teams related cleanup
+            conn.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE team_id IN (SELECT id FROM teams WHERE leader_user_id = ?)', (user_id,))
+            conn.execute('DELETE FROM team_members WHERE team_id IN (SELECT id FROM teams WHERE leader_user_id = ?)', (user_id,))
+            conn.execute('DELETE FROM teams WHERE leader_user_id = ?', (user_id,))
+            
+            # Remove user from teams as a member
+            conn.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
+            
+            # Delete user and credentials
+            conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+            conn.execute('DELETE FROM allowed_users WHERE phone = ?', (phone,))
+            
+            # Commit all changes
+            conn.commit()
+            conn.close()
+            
+            return jsonify({"success": True, "message": "User completely removed"})
+            
+        except Exception as inner_error:
+            # Roll back in case of error
+            conn.rollback()
+            conn.close()
+            raise inner_error
+            
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"Error removing user: {str(e)}")
-        print(error_details)
-        return {"error": str(e), "details": error_details}, 500
-    finally:
-        if g.db:
-            g.db.close()
+        return jsonify({
+            "error": str(e),
+            "message": "Failed to remove user"
+        }), 500
 
 # This is for local testing only
 if __name__ == "__main__":

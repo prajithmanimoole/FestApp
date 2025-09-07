@@ -50,16 +50,10 @@ document.addEventListener('DOMContentLoaded', function() {
             if (confirm(`Are you sure you want to COMPLETELY REMOVE ${userName} (${phone})?\n\nThis will remove their credentials from the database and they won't be able to login again.`)) {
                 console.log(`Attempting to remove user with ID: ${userId}`);
                 
-                // Determine if we're running locally or on Vercel
-                const isLocal = window.location.hostname === '127.0.0.1' || 
-                               window.location.hostname === 'localhost';
+                // Always use the Vercel-style API URL to ensure consistency
+                const apiUrl = `/api/complete-remove-user/${userId}`;
                 
-                // Use different URL format based on environment
-                const apiUrl = isLocal 
-                    ? `/admin/api-complete-remove-user/${userId}` 
-                    : `/api/complete-remove-user/${userId}`;
-                
-                console.log(`Using API URL: ${apiUrl}`);
+                console.log(`Removing user with ID ${userId} using API URL: ${apiUrl}`);
                 
                 // Use the complete remove API endpoint
                 fetch(apiUrl, {
@@ -70,23 +64,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .then(response => {
                     console.log(`Response status: ${response.status}`);
-                    if (!response.ok) {
-                        throw new Error(`Server returned ${response.status}`);
-                    }
-                    return response.json();
+                    return response.json().catch(e => {
+                        // Handle case where response isn't valid JSON
+                        return { 
+                            success: false, 
+                            error: `Server returned ${response.status}` 
+                        };
+                    });
                 })
                 .then(data => {
                     console.log('Response data:', data);
                     if (data.success) {
+                        alert(`User ${userName} has been completely removed.`);
                         // Reload the page to show updated data
                         window.location.reload();
                     } else {
-                        alert('Error completely removing user: ' + (data.error || 'Unknown error'));
+                        alert('Error removing user: ' + (data.error || data.message || 'Unknown error'));
                     }
                 })
                 .catch(error => {
                     console.error('API Error:', error);
-                    alert(`Failed to remove user: ${error.message}. Please check console for details.`);
+                    alert(`Network error: ${error.message}. Please try again later.`);
                 });
             }
         });
