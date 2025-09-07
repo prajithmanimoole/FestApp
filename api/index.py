@@ -51,6 +51,39 @@ def handle_500(e):
         "traceback": traceback.format_exc()
     }, 500
 
+# Direct remove handler to ensure it works on Vercel
+@app.route('/api/remove-user/<int:user_id>', methods=['GET', 'POST'])
+def api_remove_user(user_id):
+    from flask import g, redirect, url_for, flash
+    import sqlite3
+    
+    # Get a database connection
+    conn = sqlite3.connect(os.environ['DATABASE_PATH'])
+    conn.row_factory = sqlite3.Row
+    g.db = conn
+    
+    try:
+        # If user is leader of a team, delete team and unassign all members
+        team = g.db.execute('SELECT * FROM teams WHERE leader_user_id = ?', (user_id,)).fetchone()
+        if team:
+            member_ids = [r['user_id'] for r in g.db.execute('SELECT user_id FROM team_members WHERE team_id = ?', (team['id'],)).fetchall()]
+            for mid in member_ids:
+                g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (mid,))
+            g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (team['leader_user_id'],))
+            g.db.execute('DELETE FROM team_members WHERE team_id = ?', (team['id'],))
+            g.db.execute('DELETE FROM teams WHERE id = ?', (team['id'],))
+        else:
+            # If user is a regular team member or single participant, unassign
+            g.db.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
+            g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (user_id,))
+        g.db.commit()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}, 500
+    finally:
+        if g.db:
+            g.db.close()
+
 # This is for local testing only
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)

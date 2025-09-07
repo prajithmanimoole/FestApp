@@ -193,9 +193,9 @@
                         <td>{{ u.name }}</td>
                         <td>{{ u.phone }}</td>
                         <td class="text-end">
-                          <form method="post" action="{{ url_for('admin_remove_user', user_id=u.user_id) }}" onsubmit="return confirm('Remove this participant?');">
-                            <button class="btn btn-sm btn-outline-danger">Remove</button>
-                          </form>
+                          <button class="btn btn-sm btn-outline-danger remove-participant-btn" 
+                                 data-user-id="{{ u.user_id }}" 
+                                 data-user-name="{{ u.name }}">Remove</button>
                         </td>
                       </tr>
                       {% endfor %}
@@ -243,9 +243,9 @@
                                     <td>{{ m.phone }}</td>
                                     <td>Member</td>
                                     <td class="text-end">
-                                      <form method="post" action="{{ url_for('admin_remove_user', user_id=m.user_id) }}" onsubmit="return confirm('Remove this member?');">
-                                        <button class="btn btn-sm btn-outline-danger">Remove</button>
-                                      </form>
+                                      <button class="btn btn-sm btn-outline-danger remove-participant-btn" 
+                                             data-user-id="{{ m.user_id }}" 
+                                             data-user-name="{{ m.name }}">Remove</button>
                                     </td>
                                   </tr>
                                   {% endfor %}
