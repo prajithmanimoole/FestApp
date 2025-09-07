@@ -50,8 +50,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (confirm(`Are you sure you want to COMPLETELY REMOVE ${userName} (${phone})?\n\nThis will remove their credentials from the database and they won't be able to login again.`)) {
                 console.log(`Attempting to remove user with ID: ${userId}`);
                 
+                // Determine if we're running locally or on Vercel
+                const isLocal = window.location.hostname === '127.0.0.1' || 
+                               window.location.hostname === 'localhost';
+                
+                // Use different URL format based on environment
+                const apiUrl = isLocal 
+                    ? `/admin/api-complete-remove-user/${userId}` 
+                    : `/api/complete-remove-user/${userId}`;
+                
+                console.log(`Using API URL: ${apiUrl}`);
+                
                 // Use the complete remove API endpoint
-                fetch(`/api/complete-remove-user/${userId}`, {
+                fetch(apiUrl, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
