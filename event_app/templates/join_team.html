@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+
+{% block title %}Join Team{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card clear-box">
+                <div class="card-header">
+                    <h4 class="mb-0">Join a Team</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Enter the team code provided by your team leader to join their team.</p>
+                    
+                    <form method="POST">
+                        <div class="mb-3">
+                            <label for="team_code" class="form-label">Team Code</label>
+                            <input type="text" class="form-control" id="team_code" name="team_code" 
+                                   placeholder="Enter 6-character team code" maxlength="6" 
+                                   style="text-transform: uppercase;" required>
+                            <div class="form-text">Enter the 6-character code (letters and numbers only)</div>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning">Join Team</button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Auto-uppercase team code input
+document.getElementById('team_code').addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+});
+</script>
+{% endblock %}

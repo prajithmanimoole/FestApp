@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}Register Team - Event App{% endblock %}
+{% block content %}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card clear-box">
+                <div class="card-header">
+                    <h4 class="mb-0">Register Team for {{ game.name }}</h4>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted">Create a team and get a team code to share with your members. They can join later using the code.</p>
+                    
+                    <form method="post">
+                        <div class="mb-3">
+                            <label for="team_name" class="form-label">Team Name</label>
+                            <input type="text" name="team_name" id="team_name" class="form-control" required>
+                        </div>
+                        
+                        <div class="d-grid gap-2">
+                            <button type="submit" class="btn btn-warning">Create Team</button>
+                            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Back to Dashboard</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

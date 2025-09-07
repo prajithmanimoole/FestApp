@@ -1,0 +1,349 @@
+{% extends 'base.html' %}
+{% block title %}Admin - Event App{% endblock %}
+{% block content %}
+<h4 class="mb-3">Admin</h4>
+
+<ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">Overview</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="gamesctl-tab" data-bs-toggle="tab" data-bs-target="#gamesctl" type="button" role="tab" aria-controls="gamesctl" aria-selected="false">Games Control</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="addgame-tab" data-bs-toggle="tab" data-bs-target="#addgame" type="button" role="tab" aria-controls="addgame" aria-selected="false">Add Game</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="addmember-tab" data-bs-toggle="tab" data-bs-target="#addmember" type="button" role="tab" aria-controls="addmember" aria-selected="false">Add Team Member</button>
+  </li>
+</ul>
+<div class="tab-content" id="adminTabsContent">
+  <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+    <div class="row g-3">
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="card clear-box h-100"><div class="card-body">
+          <div class="text-muted small">Total Games</div>
+          <div class="display-6">{{ total_games }}</div>
+        </div></div>
+      </div>
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="card clear-box h-100"><div class="card-body">
+          <div class="text-muted small">Total Slots</div>
+          <div class="display-6">{{ total_slots }}</div>
+        </div></div>
+      </div>
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="card clear-box h-100"><div class="card-body">
+          <div class="text-muted small">Filled</div>
+          <div class="display-6">{{ total_filled }}</div>
+        </div></div>
+      </div>
+      <div class="col-xl-3 col-lg-4 col-md-6">
+        <div class="card clear-box h-100"><div class="card-body">
+          <div class="text-muted small">Remaining</div>
+          <div class="display-6">{{ total_slots - total_filled }}</div>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="accordion mt-3" id="overviewAccordion">
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="perGameHead">
+          <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#perGameBody" aria-expanded="true" aria-controls="perGameBody">
+            Per Game
+          </button>
+        </h2>
+        <div id="perGameBody" class="accordion-collapse collapse show" aria-labelledby="perGameHead" data-bs-parent="#overviewAccordion">
+          <div class="accordion-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Name</th><th>Type</th><th>Slots</th><th>Filled</th><th>Remaining</th></tr></thead>
+                <tbody>
+                  {% for s in overview_stats %}
+                  <tr>
+                    <td>{{ s.name }}</td>
+                    <td class="text-uppercase"><span class="badge bg-secondary">{{ s.type }}</span></td>
+                    <td>{{ s.slots }}</td>
+                    <td>{{ s.filled }}</td>
+                    <td>{{ s.remaining }}</td>
+                  </tr>
+                  {% endfor %}
+                  {% if overview_stats|length == 0 %}
+                    <tr><td colspan="5" class="text-muted">No games yet.</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="credsHead">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#credsBody" aria-expanded="false" aria-controls="credsBody">
+            Credentials (Admin-provided)
+          </button>
+        </h2>
+        <div id="credsBody" class="accordion-collapse collapse" aria-labelledby="credsHead" data-bs-parent="#overviewAccordion">
+          <div class="accordion-body">
+            <form method="post" class="mb-3">
+              <input type="hidden" name="form_type" value="add_credential">
+              <div class="row g-2">
+                <div class="col-md-4"><input class="form-control" name="cred_name" placeholder="Name" required></div>
+                <div class="col-md-4"><input class="form-control" name="cred_phone" placeholder="Phone" required></div>
+                <div class="col-md-4"><input class="form-control" name="cred_password" placeholder="Password" required></div>
+              </div>
+              <div class="mt-2">
+                <button class="btn btn-primary btn-sm">Add Credential</button>
+              </div>
+            </form>
+            <div class="table-responsive" style="max-height:280px; overflow:auto;">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Name</th><th>Phone</th><th>Password</th><th>Role</th></tr></thead>
+                <tbody>
+                  {% for c in allowed_list %}
+                  <tr>
+                    <td>{{ c.name }}</td>
+                    <td>{{ c.phone }}</td>
+                    <td>{{ c.password }}</td>
+                    <td>{% if c.is_admin %}Admin{% else %}User{% endif %}</td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <div class="text-muted small mt-2">Existing sign-ups were auto-added. Signup is disabled; users sign in with these credentials.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="accordion-item">
+        <h2 class="accordion-header" id="participantsHead">
+          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#participantsBody" aria-expanded="false" aria-controls="participantsBody">
+            All Participants
+          </button>
+        </h2>
+        <div id="participantsBody" class="accordion-collapse collapse" aria-labelledby="participantsHead" data-bs-parent="#overviewAccordion">
+          <div class="accordion-body">
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead><tr><th>Name</th><th>Phone</th><th>Password</th><th>Game</th><th>Team</th><th>Role</th></tr></thead>
+                <tbody>
+                  {% for p in participants_overview %}
+                  <tr data-participant-id="{{ p.user_id }}" data-participant-name="{{ p.name }}">
+                    <td>{{ p.name }}</td>
+                    <td>{{ p.phone }}</td>
+                    <td>{{ p.password }}</td>
+                    <td>{{ p.game_name }}</td>
+                    <td>{{ p.team_name or '-' }}</td>
+                    <td>{% if p.game_type == 'team' %}{% if p.is_leader %}Leader{% else %}Member{% endif %}{% else %}-{% endif %}</td>
+                  </tr>
+                  {% endfor %}
+                  {% if participants_overview|length == 0 %}
+                    <tr><td colspan="6" class="text-muted">No participants yet.</td></tr>
+                  {% endif %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="gamesctl" role="tabpanel" aria-labelledby="gamesctl-tab">
+    <div class="d-flex justify-content-between align-items-center mb-3 clear-box p-3">
+      <h5 class="mb-0">Control by Game</h5>
+      <div class="ms-auto" style="max-width:260px;">
+        <input class="form-control" id="gameFilter" placeholder="Filter games by name" />
+      </div>
+    </div>
+
+    {% if games|length == 0 %}
+      <p class="text-muted mb-0">No games yet. Add one on the Overview tab.</p>
+    {% endif %}
+
+    <div class="row g-3" id="gamesGrid">
+      {% for g in games %}
+      {% set cid = 'gamec' ~ g.id %}
+      <div class="col-xl-6 col-lg-6 col-md-12 game-card" data-game-name="{{ g.name|lower }}">
+        <div class="card clear-box h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-start justify-content-between">
+              <div>
+                <button class="btn btn-link p-0 text-decoration-none" type="button" data-bs-toggle="collapse" data-bs-target="#{{ cid }}" aria-expanded="false" aria-controls="{{ cid }}">
+                  <h5 class="card-title mb-1 d-inline">{{ g.name }}</h5>
+                </button>
+                <span class="badge bg-secondary text-uppercase ms-2">{{ g.type }}</span>
+                <div class="text-muted small">Members: {{ game_member_counts.get(g.id, 0) }} | Slots: {{ g.slots }}</div>
+              </div>
+              <form method="post" action="{{ url_for('admin_delete_game', game_id=g.id) }}" onsubmit="return confirm('Delete game and unassign all participants?');">
+                <button class="btn btn-sm btn-outline-danger">Delete Game</button>
+              </form>
+            </div>
+
+            <div id="{{ cid }}" class="collapse mt-3">
+              {% if g.type == 'single' %}
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th>Name</th><th>Phone</th><th class="text-end"></th></tr></thead>
+                    <tbody>
+                      {% for u in game_participants.get(g.id, []) %}
+                      <tr data-participant-id="{{ u.user_id }}" data-participant-name="{{ u.name }}">
+                        <td>{{ u.name }}</td>
+                        <td>{{ u.phone }}</td>
+                        <td class="text-end">
+                          <form method="post" action="{{ url_for('admin_remove_user', user_id=u.user_id) }}" onsubmit="return confirm('Remove this participant?');">
+                            <button class="btn btn-sm btn-outline-danger">Remove</button>
+                          </form>
+                        </td>
+                      </tr>
+                      {% endfor %}
+                      {% if game_participants.get(g.id, [])|length == 0 %}
+                        <tr><td colspan="3" class="text-muted">No participants yet.</td></tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+              {% else %}
+                {% set teams_in_game = game_to_teams.get(g.id, []) %}
+                {% if teams_in_game|length == 0 %}
+                  <div class="text-muted">No teams yet.</div>
+                {% else %}
+                  <div class="accordion" id="teamsAcc{{ g.id }}">
+                    {% for t in teams_in_game %}
+                      {% set tid = 'team' ~ t.id %}
+                      <div class="accordion-item">
+                        <h2 class="accordion-header" id="{{ tid }}-h">
+                          <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#{{ tid }}-c" aria-expanded="false" aria-controls="{{ tid }}-c">
+                            <strong class="me-2">{{ t.team_name }}</strong>
+                            <span class="badge bg-info me-2">{{ t.team_code }}</span>
+                            <span class="text-muted small">Leader: {{ t.leader_name }} ({{ t.leader_phone }})</span>
+                          </button>
+                        </h2>
+                        <div id="{{ tid }}-c" class="accordion-collapse collapse" aria-labelledby="{{ tid }}-h" data-bs-parent="#teamsAcc{{ g.id }}">
+                          <div class="accordion-body">
+                            <div class="table-responsive">
+                              <table class="table table-sm align-middle mb-0">
+                                <thead><tr><th>Member</th><th>Phone</th><th>Role</th><th class="text-end"></th></tr></thead>
+                                <tbody>
+                                  <tr data-participant-id="{{ t.leader_user_id }}" data-participant-name="{{ t.leader_name }}">
+                                    <td>{{ t.leader_name }}</td>
+                                    <td>{{ t.leader_phone }}</td>
+                                    <td>Leader</td>
+                                    <td class="text-end">
+                                      <form method="post" action="{{ url_for('admin_delete_team', team_id=t.id) }}" onsubmit="return confirm('Delete this team and unassign members?');">
+                                        <button class="btn btn-sm btn-outline-danger">Delete Team</button>
+                                      </form>
+                                    </td>
+                                  </tr>
+                                  {% for m in members_map.get(t.id, []) %}
+                                  <tr data-participant-id="{{ m.user_id }}" data-participant-name="{{ m.name }}">
+                                    <td>{{ m.name }}</td>
+                                    <td>{{ m.phone }}</td>
+                                    <td>Member</td>
+                                    <td class="text-end">
+                                      <form method="post" action="{{ url_for('admin_remove_user', user_id=m.user_id) }}" onsubmit="return confirm('Remove this member?');">
+                                        <button class="btn btn-sm btn-outline-danger">Remove</button>
+                                      </form>
+                                    </td>
+                                  </tr>
+                                  {% endfor %}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    {% endfor %}
+                  </div>
+                {% endif %}
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="addgame" role="tabpanel" aria-labelledby="addgame-tab">
+    <div class="card clear-box">
+      <div class="card-body">
+        <h5 class="card-title">Add a New Game</h5>
+        <form method="post">
+          <input type="hidden" name="form_type" value="add_game">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">Name</label>
+              <input type="text" name="name" class="form-control" placeholder="e.g., Chess" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Slots</label>
+              <input type="number" name="slots" class="form-control" min="1" placeholder="e.g., 8" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Type</label>
+              <select class="form-select" name="type" id="gameTypeSelect" required>
+                <option value="single">Single</option>
+                <option value="team">Team</option>
+              </select>
+            </div>
+            <div class="col-md-2" id="teamSizeWrap" style="display:none;">
+              <label class="form-label">Team Size</label>
+              <input type="number" name="team_size" id="teamSizeInput" class="form-control" min="2" placeholder="e.g., 3">
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label">Description</label>
+            <textarea name="description" class="form-control" rows="2" placeholder="Optional short description"></textarea>
+          </div>
+            <div class="mt-3">
+              <button class="btn btn-warning">Add Game</button>
+            </div>
+        </form>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tab-pane fade" id="addmember" role="tabpanel" aria-labelledby="addmember-tab">
+    <div class="card clear-box">
+      <div class="card-body">
+        <h5 class="card-title">Add Member to Team</h5>
+        <p class="text-muted">Add a user to an existing team using the team code.</p>
+        
+        <form method="post" action="{{ url_for('admin_add_team_member') }}">
+          <div class="row g-2">
+            <div class="col-md-4">
+              <label class="form-label">Team Code</label>
+              <input type="text" name="team_code" class="form-control" placeholder="ABC123" style="text-transform: uppercase;" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">User Phone</label>
+              <input type="text" name="member_phone" class="form-control" placeholder="9000000005" required>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+              <button type="submit" class="btn btn-warning">Add Member to Team</button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var sel = document.getElementById('gameTypeSelect');
+  var wrap = document.getElementById('teamSizeWrap');
+  var input = document.getElementById('teamSizeInput');
+  function sync(){
+    var isTeam = sel && sel.value === 'team';
+    if(wrap){ wrap.style.display = isTeam ? '' : 'none'; }
+    if(input){ input.required = !!isTeam; }
+  }
+  if(sel){ sel.addEventListener('change', sync); sync(); }
+})();
+</script>
+{% endblock %}
+
+

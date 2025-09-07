@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - Event App{% endblock %}
+{% block content %}
+<h3 class="mb-3">Welcome, {{ user['name'] }}</h3>
+
+{% if user['is_admin'] %}
+  <div class="card mb-4 clear-box">
+    <div class="card-body">
+      <h5 class="card-title">Admin: Add Participants</h5>
+      <ul class="nav nav-pills mb-3" id="adminAddTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+          <button class="nav-link active" id="add-team-tab" data-bs-toggle="tab" data-bs-target="#add-team" type="button" role="tab" aria-controls="add-team" aria-selected="true">Team</button>
+        </li>
+        <li class="nav-item" role="presentation">
+          <button class="nav-link" id="add-single-tab" data-bs-toggle="tab" data-bs-target="#add-single" type="button" role="tab" aria-controls="add-single" aria-selected="false">Single</button>
+        </li>
+      </ul>
+      <div class="tab-content" id="adminAddTabsContent">
+        <div class="tab-pane fade show active" id="add-team" role="tabpanel" aria-labelledby="add-team-tab">
+          <form method="post" action="{{ url_for('admin_create_team') }}">
+            <div class="row g-2">
+              <div class="col-md-3">
+                <label class="form-label">Team Name</label>
+                <input type="text" name="team_name" class="form-control" required>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Game</label>
+                <select class="form-select" name="game_id" required>
+                  <option value="">Select a team game</option>
+                  {% for g in games if g.type == 'team' %}
+                    <option value="{{ g.id }}">{{ g.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-3">
+                <label class="form-label">Leader Phone</label>
+                <input type="text" name="leader_phone" class="form-control" placeholder="9000000001" required>
+              </div>
+            </div>
+            <div class="mt-2">
+              <label class="form-label">Members' phone numbers (one per line)</label>
+              <textarea name="members" class="form-control" rows="4" placeholder="9000000002
+9000000003"></textarea>
+            </div>
+            <div class="mt-3">
+              <button class="btn btn-warning">Create Team</button>
+              <span class="text-muted ms-2">All users must have signed up first.</span>
+            </div>
+          </form>
+        </div>
+        <div class="tab-pane fade" id="add-single" role="tabpanel" aria-labelledby="add-single-tab">
+          <form method="post" action="{{ url_for('admin_add_single') }}">
+            <div class="row g-2">
+              <div class="col-md-4">
+                <label class="form-label">Single Game</label>
+                <select class="form-select" name="single_game_id" required>
+                  <option value="">Select a single game</option>
+                  {% for g in games if g.type == 'single' %}
+                    <option value="{{ g.id }}">{{ g.name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">User Phone</label>
+                <input type="text" name="single_phone" class="form-control" placeholder="9000000005" required>
+              </div>
+            </div>
+            <div class="mt-3">
+              <button class="btn btn-warning">Add Participant</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+{% if registration and registration.type == 'single' %}
+  <div class="alert alert-info">You are registered for <strong>{{ registration.game.name }}</strong>.</div>
+{% elif registration and registration.type == 'team' %}
+  <div class="card mb-3 clear-box">
+    <div class="card-body">
+      <h5 class="card-title">Team Registration</h5>
+      <p class="mb-1">Game: <strong>{{ registration.game.name }}</strong></p>
+      <p class="mb-1">Team: <strong>{{ registration.team.name }}</strong></p>
+      {% if registration.team.leader_user_id == user.id %}
+        <div class="alert alert-info">
+          <strong>Team Code: {{ registration.team.team_code }}</strong><br>
+          <small>Share this code with your team members so they can join your team.</small>
+        </div>
+      {% endif %}
+      <p class="mb-0">Members:</p>
+      <ul class="mb-0">
+        {% for m in registration.members %}
+          <li>{{ m.name }} ({{ m.phone }})</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+{% endif %}
+
+{% if not registration and not user['is_admin'] %}
+  <div class="card mb-4 clear-box">
+    <div class="card-body">
+      <h5 class="card-title">Join a Team</h5>
+      <p class="text-muted">Have a team code? Join an existing team.</p>
+      <a href="{{ url_for('join_team') }}" class="btn btn-warning">Join Team with Code</a>
+    </div>
+  </div>
+{% endif %}
+
+<div class="row g-3">
+  {% for game in games %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100 clear-box">
+      <div class="card-body d-flex flex-column">
+        <h5 class="card-title">{{ game.name }}</h5>
+        <p class="card-text text-muted">{{ game.description }}</p>
+        <p class="mb-2"><span class="badge bg-secondary">{{ game.type }}</span></p>
+        <p class="mb-3">Available: <strong>{{ game.available }}</strong></p>
+        {% if not registration and not user['is_admin'] %}
+          {% if game.type == 'single' %}
+            <form method="post" action="{{ url_for('register_single', game_id=game.id) }}" class="mt-auto">
+              <button class="btn btn-warning w-100" {% if game.available == 0 %}disabled{% endif %}>Register</button>
+            </form>
+          {% else %}
+            <a href="{{ url_for('team_register', game_id=game.id) }}" class="btn btn-warning mt-auto {% if game.available == 0 %}disabled{% endif %}">Register Team</a>
+          {% endif %}
+        {% elif user['is_admin'] %}
+          <button class="btn btn-outline-secondary mt-auto" disabled>Admin cannot register</button>
+        {% else %}
+          <button class="btn btn-outline-secondary mt-auto" disabled>Already Registered</button>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% endblock %}
+
+
