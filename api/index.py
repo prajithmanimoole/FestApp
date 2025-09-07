@@ -14,6 +14,11 @@ from app import create_app
 # Create Flask app instance - don't use the existing instance
 app = create_app()
 
+# Add a simple test route for debugging
+@app.route('/api/test')
+def test_route():
+    return {"status": "ok", "message": "API is working"}
+
 # Add error handling for debugging on Vercel
 @app.errorhandler(500)
 def handle_500(e):
