@@ -9,7 +9,8 @@ from typing import Optional, Dict, Any, List
 from flask import Flask, g, render_template, request, redirect, url_for, session, flash, send_file
 
 
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), 'database.db')
+# Use environment variable if set, otherwise use the default path
+DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'database.db'))
 
 
 def generate_team_code() -> str:
