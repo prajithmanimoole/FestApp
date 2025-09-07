@@ -33,6 +33,15 @@ app = create_app()
 def test_route():
     return {"status": "ok", "message": "API is working"}
 
+# Fix the issue with form submission not working on Vercel
+# We need to add this middleware to handle form submission properly
+@app.before_request
+def fix_form_submission():
+    # For POST requests without proper form data, set empty form data
+    if request.method == 'POST' and not request.form and not request.files and not request.is_json:
+        from werkzeug.datastructures import ImmutableMultiDict
+        request.form = ImmutableMultiDict([])
+
 # Add error handling for debugging on Vercel
 @app.errorhandler(500)
 def handle_500(e):
