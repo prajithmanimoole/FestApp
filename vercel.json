@@ -8,12 +8,8 @@
   ],
   "functions": {
     "api/index.py": {
-      "memory": 1024,
-      "maxDuration": 30
+      "memory": 256,
+      "maxDuration": 10
     }
-  },
-  "env": {
-    "PYTHONPATH": ".",
-    "FLASK_APP": "api/index.py"
   }
 }
