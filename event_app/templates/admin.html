@@ -127,7 +127,7 @@
           <div class="accordion-body">
             <div class="table-responsive">
               <table class="table table-sm align-middle mb-0">
-                <thead><tr><th>Name</th><th>Phone</th><th>Password</th><th>Game</th><th>Team</th><th>Role</th></tr></thead>
+                <thead><tr><th>Name</th><th>Phone</th><th>Password</th><th>Game</th><th>Team</th><th>Role</th><th class="text-center">Action</th></tr></thead>
                 <tbody>
                   {% for p in participants_overview %}
                   <tr data-participant-id="{{ p.user_id }}" data-participant-name="{{ p.name }}">
@@ -137,6 +137,12 @@
                     <td>{{ p.game_name }}</td>
                     <td>{{ p.team_name or '-' }}</td>
                     <td>{% if p.game_type == 'team' %}{% if p.is_leader %}Leader{% else %}Member{% endif %}{% else %}-{% endif %}</td>
+                    <td class="text-center">
+                      <button class="btn btn-sm btn-danger complete-remove-btn" 
+                             data-user-id="{{ p.user_id }}" 
+                             data-user-name="{{ p.name }}"
+                             data-phone="{{ p.phone }}">Remove</button>
+                    </td>
                   </tr>
                   {% endfor %}
                   {% if participants_overview|length == 0 %}

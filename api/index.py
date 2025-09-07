@@ -83,6 +83,49 @@ def api_remove_user(user_id):
     finally:
         if g.db:
             g.db.close()
+            
+# Complete remove handler to remove user completely from the database
+@app.route('/api/complete-remove-user/<int:user_id>', methods=['GET', 'POST'])
+def api_complete_remove_user(user_id):
+    from flask import g, redirect, url_for, flash
+    import sqlite3
+    
+    # Get a database connection
+    conn = sqlite3.connect(os.environ['DATABASE_PATH'])
+    conn.row_factory = sqlite3.Row
+    g.db = conn
+    
+    try:
+        # First get the user to get their phone
+        user = g.db.execute('SELECT * FROM users WHERE id = ?', (user_id,)).fetchone()
+        if not user:
+            return {"error": "User not found"}, 404
+            
+        phone = user['phone']
+        
+        # If user is leader of a team, delete team and unassign all members
+        team = g.db.execute('SELECT * FROM teams WHERE leader_user_id = ?', (user_id,)).fetchone()
+        if team:
+            member_ids = [r['user_id'] for r in g.db.execute('SELECT user_id FROM team_members WHERE team_id = ?', (team['id'],)).fetchall()]
+            for mid in member_ids:
+                g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (mid,))
+            g.db.execute('DELETE FROM team_members WHERE team_id = ?', (team['id'],))
+            g.db.execute('DELETE FROM teams WHERE id = ?', (team['id'],))
+        
+        # Delete from team_members if they're a member
+        g.db.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
+        
+        # Now delete from users and allowed_users tables
+        g.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
+        g.db.execute('DELETE FROM allowed_users WHERE phone = ?', (phone,))
+        
+        g.db.commit()
+        return {"success": True}
+    except Exception as e:
+        return {"error": str(e)}, 500
+    finally:
+        if g.db:
+            g.db.close()
 
 # This is for local testing only
 if __name__ == "__main__":

@@ -37,4 +37,38 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    
+    // Handle complete removal buttons (removes from both users and allowed_users tables)
+    document.querySelectorAll('.complete-remove-btn').forEach(function(btn) {
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const userId = this.getAttribute('data-user-id');
+            const userName = this.getAttribute('data-user-name') || 'this participant';
+            const phone = this.getAttribute('data-phone') || '';
+            
+            if (confirm(`Are you sure you want to COMPLETELY REMOVE ${userName} (${phone})?\n\nThis will remove their credentials from the database and they won't be able to login again.`)) {
+                // Use the complete remove API endpoint
+                fetch(`/api/complete-remove-user/${userId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Reload the page to show updated data
+                        window.location.reload();
+                    } else {
+                        alert('Error completely removing user: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    alert('Failed to remove user. Please try again.');
+                });
+            }
+        });
+    });
 });
