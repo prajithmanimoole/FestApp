@@ -6,6 +6,20 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'event_app'))
 
 # Set environment variables for database path - important for Vercel
+# First try to copy the included database to /tmp for write access
+try:
+    source_db = os.path.join(os.path.dirname(__file__), 'database.db')
+    target_db = os.path.join('/tmp', 'database.db')
+    
+    # Only copy if the source exists and target doesn't exist yet
+    if os.path.exists(source_db) and not os.path.exists(target_db):
+        import shutil
+        shutil.copy2(source_db, target_db)
+        print(f"Database copied from {source_db} to {target_db}")
+except Exception as e:
+    print(f"Error copying database: {str(e)}")
+    
+# Set the database path to the writable location
 os.environ['DATABASE_PATH'] = os.path.join('/tmp', 'database.db')
 
 # Import the Flask app from your existing code
