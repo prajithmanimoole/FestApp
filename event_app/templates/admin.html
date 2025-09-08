@@ -5,20 +5,23 @@
 
 <ul class="nav nav-tabs mb-3" id="adminTabs" role="tablist">
   <li class="nav-item" role="presentation">
-    <button class="nav-link active" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="true">Overview</button>
+    <button class="nav-link {% if active_tab == 'overview' %}active{% endif %}" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview" type="button" role="tab" aria-controls="overview" aria-selected="{% if active_tab == 'overview' %}true{% else %}false{% endif %}">Overview</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="gamesctl-tab" data-bs-toggle="tab" data-bs-target="#gamesctl" type="button" role="tab" aria-controls="gamesctl" aria-selected="false">Games Control</button>
+    <button class="nav-link {% if active_tab == 'gamesctl' %}active{% endif %}" id="gamesctl-tab" data-bs-toggle="tab" data-bs-target="#gamesctl" type="button" role="tab" aria-controls="gamesctl" aria-selected="{% if active_tab == 'gamesctl' %}true{% else %}false{% endif %}">Games Control</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="addgame-tab" data-bs-toggle="tab" data-bs-target="#addgame" type="button" role="tab" aria-controls="addgame" aria-selected="false">Add Game</button>
+    <button class="nav-link {% if active_tab == 'addgame' %}active{% endif %}" id="addgame-tab" data-bs-toggle="tab" data-bs-target="#addgame" type="button" role="tab" aria-controls="addgame" aria-selected="{% if active_tab == 'addgame' %}true{% else %}false{% endif %}">Add Game</button>
   </li>
   <li class="nav-item" role="presentation">
-    <button class="nav-link" id="addmember-tab" data-bs-toggle="tab" data-bs-target="#addmember" type="button" role="tab" aria-controls="addmember" aria-selected="false">Add Team Member</button>
+    <button class="nav-link {% if active_tab == 'addmember' %}active{% endif %}" id="addmember-tab" data-bs-toggle="tab" data-bs-target="#addmember" type="button" role="tab" aria-controls="addmember" aria-selected="{% if active_tab == 'addmember' %}true{% else %}false{% endif %}">Add Team Member</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'whitelist' %}active{% endif %}" id="whitelist-tab" data-bs-toggle="tab" data-bs-target="#whitelist" type="button" role="tab" aria-controls="whitelist" aria-selected="{% if active_tab == 'whitelist' %}true{% else %}false{% endif %}">Whitelist</button>
   </li>
 </ul>
 <div class="tab-content" id="adminTabsContent">
-  <div class="tab-pane fade show active" id="overview" role="tabpanel" aria-labelledby="overview-tab">
+  <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}" id="overview" role="tabpanel" aria-labelledby="overview-tab">
     <div class="row g-3">
       <div class="col-xl-3 col-lg-4 col-md-6">
         <div class="card clear-box h-100"><div class="card-body">
@@ -112,7 +115,17 @@
                 </tbody>
               </table>
             </div>
-            <div class="text-muted small mt-2">Existing sign-ups were auto-added. Signup is disabled; users sign in with these credentials.</div>
+            <div class="d-flex align-items-center justify-content-between mt-3">
+              <div class="text-muted small">Existing sign-ups were auto-added.</div>
+              <div>
+                <form method="post" action="{{ url_for('admin_remove_participants') }}" class="d-inline" onsubmit="return confirm('Remove all participants (non-admin users and all teams)?');">
+                  <button class="btn btn-sm btn-outline-warning me-2">Remove All Participants</button>
+                </form>
+                <form method="post" action="{{ url_for('admin_clear_all') }}" class="d-inline" onsubmit="return confirm('This will delete all data except admin accounts. Continue?');">
+                  <button class="btn btn-sm btn-outline-danger">Clear All Except Admin</button>
+                </form>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -130,7 +143,7 @@
                 <thead><tr><th>Name</th><th>Phone</th><th>Password</th><th>Game</th><th>Team</th><th>Role</th><th class="text-center">Action</th></tr></thead>
                 <tbody>
                   {% for p in participants_overview %}
-                  <tr data-participant-id="{{ p.user_id }}" data-participant-name="{{ p.name }}">
+                  <tr data-participant-id="{{ p.user_id }}" data-participant-name="{{ p.name }}" data-participant-phone="{{ p.phone }}">
                     <td>{{ p.name }}</td>
                     <td>{{ p.phone }}</td>
                     <td>{{ p.password }}</td>
@@ -138,6 +151,11 @@
                     <td>{{ p.team_name or '-' }}</td>
                     <td>{% if p.game_type == 'team' %}{% if p.is_leader %}Leader{% else %}Member{% endif %}{% else %}-{% endif %}</td>
                     <td class="text-center">
+                      <button class="btn btn-sm btn-secondary me-1 edit-user-btn" 
+                             data-user-id="{{ p.user_id }}" 
+                             data-user-name="{{ p.name }}"
+                             data-phone="{{ p.phone }}"
+                             data-password="{{ p.password }}">Edit</button>
                       <button class="btn btn-sm btn-danger complete-remove-btn" 
                              data-user-id="{{ p.user_id }}" 
                              data-user-name="{{ p.name }}"
@@ -157,7 +175,7 @@
     </div>
   </div>
 
-  <div class="tab-pane fade" id="gamesctl" role="tabpanel" aria-labelledby="gamesctl-tab">
+  <div class="tab-pane fade {% if active_tab == 'gamesctl' %}show active{% endif %}" id="gamesctl" role="tabpanel" aria-labelledby="gamesctl-tab">
     <div class="d-flex justify-content-between align-items-center mb-3 clear-box p-3">
       <h5 class="mb-0">Control by Game</h5>
       <div class="ms-auto" style="max-width:260px;">
@@ -183,7 +201,7 @@
                 <span class="badge bg-secondary text-uppercase ms-2">{{ g.type }}</span>
                 <div class="text-muted small">Members: {{ game_member_counts.get(g.id, 0) }} | Slots: {{ g.slots }}</div>
               </div>
-              <form method="post" action="{{ url_for('admin_delete_game', game_id=g.id) }}" onsubmit="return confirm('Delete game and unassign all participants?');">
+              <form method="post" action="{{ url_for('admin_delete_game', game_id=g.id) }}?tab=gamesctl" onsubmit="return confirm('Delete game and unassign all participants?');">
                 <button class="btn btn-sm btn-outline-danger">Delete Game</button>
               </form>
             </div>
@@ -201,7 +219,7 @@
                         <td class="text-end">
                           <button class="btn btn-sm btn-outline-danger remove-participant-btn" 
                                  data-user-id="{{ u.user_id }}" 
-                                 data-user-name="{{ u.name }}">Remove</button>
+                                 data-user-name="{{ u.name }}" data-tab="gamesctl">Remove</button>
                         </td>
                       </tr>
                       {% endfor %}
@@ -238,7 +256,7 @@
                                     <td>{{ t.leader_phone }}</td>
                                     <td>Leader</td>
                                     <td class="text-end">
-                                      <form method="post" action="{{ url_for('admin_delete_team', team_id=t.id) }}" onsubmit="return confirm('Delete this team and unassign members?');">
+                                      <form method="post" action="{{ url_for('admin_delete_team', team_id=t.id) }}?tab=gamesctl" onsubmit="return confirm('Delete this team and unassign members?');">
                                         <button class="btn btn-sm btn-outline-danger">Delete Team</button>
                                       </form>
                                     </td>
@@ -251,7 +269,7 @@
                                     <td class="text-end">
                                       <button class="btn btn-sm btn-outline-danger remove-participant-btn" 
                                              data-user-id="{{ m.user_id }}" 
-                                             data-user-name="{{ m.name }}">Remove</button>
+                                             data-user-name="{{ m.name }}" data-tab="gamesctl">Remove</button>
                                     </td>
                                   </tr>
                                   {% endfor %}
@@ -273,7 +291,7 @@
     </div>
   </div>
 
-  <div class="tab-pane fade" id="addgame" role="tabpanel" aria-labelledby="addgame-tab">
+  <div class="tab-pane fade {% if active_tab == 'addgame' %}show active{% endif %}" id="addgame" role="tabpanel" aria-labelledby="addgame-tab">
     <div class="card clear-box">
       <div class="card-body">
         <h5 class="card-title">Add a New Game</h5>
@@ -312,12 +330,130 @@
     </div>
   </div>
   
-  <div class="tab-pane fade" id="addmember" role="tabpanel" aria-labelledby="addmember-tab">
+  <div class="tab-pane fade {% if active_tab == 'whitelist' %}show active{% endif %}" id="whitelist" role="tabpanel" aria-labelledby="whitelist-tab">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="card clear-box h-100"><div class="card-body">
+          <h5 class="card-title">Add to Whitelist</h5>
+          <form method="post" class="mb-3">
+            <input type="hidden" name="form_type" value="add_whitelist">
+            <div class="row g-2">
+              <div class="col-md-8"><input class="form-control" name="wl_phone" placeholder="Phone" required></div>
+              <div class="col-md-4"><button class="btn btn-primary w-100">Add</button></div>
+            </div>
+          </form>
+          <form method="post">
+            <input type="hidden" name="form_type" value="bulk_whitelist">
+            <div class="mb-2">
+              <label class="form-label">Bulk add (one phone per line)</label>
+              <textarea class="form-control" name="wl_phones" rows="5" placeholder="9000000001\n9000000002\n..."></textarea>
+            </div>
+            <button class="btn btn-warning">Bulk Add</button>
+          </form>
+        </div></div>
+      </div>
+      <div class="col-lg-6">
+        <div class="card clear-box h-100"><div class="card-body">
+          <h5 class="card-title">Whitelist</h5>
+          <div class="table-responsive" style="max-height:320px; overflow:auto;">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>Phone</th><th class="text-end">Action</th></tr></thead>
+              <tbody>
+                {% for w in whitelist_list %}
+                <tr>
+                  <td>{{ w.phone }}</td>
+                  <td class="text-end">
+                    <form method="post" class="d-inline" onsubmit="return confirm('Remove {{ w.phone }} from whitelist?');">
+                      <input type="hidden" name="form_type" value="remove_whitelist">
+                      <input type="hidden" name="wl_phone_remove" value="{{ w.phone }}">
+                      <button class="btn btn-sm btn-outline-danger">Remove</button>
+                    </form>
+                  </td>
+                </tr>
+                {% endfor %}
+                {% if whitelist_list|length == 0 %}
+                  <tr><td colspan="2" class="text-muted">No whitelist entries.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </div>
+  
+  <div class="tab-pane fade {% if active_tab == 'addmember' %}show active{% endif %}" id="addmember" role="tabpanel" aria-labelledby="addmember-tab">
     <div class="card clear-box">
       <div class="card-body">
-        <h5 class="card-title">Add Member to Team</h5>
-        <p class="text-muted">Add a user to an existing team using the team code.</p>
-        
+        <h5 class="card-title">Admin: Add Participants</h5>
+        <ul class="nav nav-pills mb-3" id="adminAddTabs" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="add-team-tab" data-bs-toggle="tab" data-bs-target="#add-team" type="button" role="tab" aria-controls="add-team" aria-selected="true">Team</button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button class="nav-link" id="add-single-tab" data-bs-toggle="tab" data-bs-target="#add-single" type="button" role="tab" aria-controls="add-single" aria-selected="false">Single</button>
+          </li>
+        </ul>
+        <div class="tab-content" id="adminAddTabsContent">
+          <div class="tab-pane fade show active" id="add-team" role="tabpanel" aria-labelledby="add-team-tab">
+            <form method="post" action="{{ url_for('admin_create_team') }}">
+              <div class="row g-2">
+                <div class="col-md-3">
+                  <label class="form-label">Team Name</label>
+                  <input type="text" name="team_name" class="form-control" required>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Game</label>
+                  <select class="form-select" name="game_id" required>
+                    <option value="">Select a team game</option>
+                    {% for g in games if g.type == 'team' %}
+                      <option value="{{ g.id }}">{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label">Leader Phone</label>
+                  <input type="text" name="leader_phone" class="form-control" placeholder="9000000001" required>
+                </div>
+              </div>
+              <div class="mt-2">
+                <label class="form-label">Members' phone numbers (one per line) <span class="text-muted">(optional)</span></label>
+                <textarea name="members" class="form-control" rows="4" placeholder="9000000002
+9000000003"></textarea>
+              </div>
+              <div class="mt-3">
+                <button class="btn btn-warning">Create Team</button>
+                <span class="text-muted ms-2">All users must have signed up first.</span>
+              </div>
+            </form>
+          </div>
+          <div class="tab-pane fade" id="add-single" role="tabpanel" aria-labelledby="add-single-tab">
+            <form method="post" action="{{ url_for('admin_add_single') }}">
+              <div class="row g-2">
+                <div class="col-md-4">
+                  <label class="form-label">Single Game</label>
+                  <select class="form-select" name="single_game_id" required>
+                    <option value="">Select a single game</option>
+                    {% for g in games if g.type == 'single' %}
+                      <option value="{{ g.id }}">{{ g.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label class="form-label">User Phone</label>
+                  <input type="text" name="single_phone" class="form-control" placeholder="9000000005" required>
+                </div>
+              </div>
+              <div class="mt-3">
+                <button class="btn btn-warning">Add Participant</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <hr class="my-4">
+        <h6 class="mb-2">Add Member to Existing Team (by Team Code)</h6>
+        <p class="text-muted">Use a team code to add a signed-up user as a member.</p>
         <form method="post" action="{{ url_for('admin_add_team_member') }}">
           <div class="row g-2">
             <div class="col-md-4">
@@ -337,6 +473,64 @@
     </div>
   </div>
 </div>
+<!-- Edit User Modal -->
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-labelledby="editUserLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="editUserLabel">Edit User</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" id="editUserForm">
+        <div class="modal-body">
+          <input type="hidden" name="original_phone" id="editOriginalPhone">
+          <div class="mb-2">
+            <label class="form-label">Name</label>
+            <input class="form-control" name="edit_name" id="editName" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Phone</label>
+            <input class="form-control" name="edit_phone" id="editPhone" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Password</label>
+            <input class="form-control" name="edit_password" id="editPassword" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label">Class & Section</label>
+            <input class="form-control" name="edit_class_section" id="editClassSection" placeholder="e.g., 1BCA-D">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var modalEl = document.getElementById('editUserModal');
+  var formEl = document.getElementById('editUserForm');
+  document.querySelectorAll('.edit-user-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var userId = this.getAttribute('data-user-id');
+      var name = this.getAttribute('data-user-name');
+      var phone = this.getAttribute('data-phone');
+      var password = this.getAttribute('data-password');
+      document.getElementById('editName').value = name;
+      document.getElementById('editPhone').value = phone;
+      document.getElementById('editPassword').value = password;
+      document.getElementById('editOriginalPhone').value = phone;
+      formEl.action = '{{ url_for('admin_edit_user', user_id=0) }}'.replace('0', userId);
+      var modal = new bootstrap.Modal(modalEl);
+      modal.show();
+    });
+  });
+})();
+</script>
 <script>
 (function(){
   var sel = document.getElementById('gameTypeSelect');

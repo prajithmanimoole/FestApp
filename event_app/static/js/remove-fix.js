@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const userName = this.getAttribute('data-user-name') || 'this participant';
             
             if (confirm(`Are you sure you want to remove ${userName}?`)) {
-                // First try the direct API endpoint that works on Vercel
+                // First try the direct API endpoint
                 fetch(`/api/remove-user/${userId}`, {
                     method: 'POST',
                     headers: {
@@ -19,8 +19,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Reload the page to show updated data
-                        window.location.reload();
+                        // Reload the page to show updated data, preserve tab if provided
+                        const tab = btn.getAttribute('data-tab');
+                        if (tab) {
+                          const url = new URL(window.location.href);
+                          url.searchParams.set('tab', tab);
+                          window.location.href = url.toString();
+                        } else {
+                          window.location.reload();
+                        }
                     } else {
                         alert('Error removing user: ' + (data.error || 'Unknown error'));
                     }
@@ -30,7 +37,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('API Error:', error);
                     const form = document.createElement('form');
                     form.method = 'POST';
-                    form.action = `/admin/user/remove/${userId}`;
+                    const tab = btn.getAttribute('data-tab');
+                    form.action = `/admin/user/remove/${userId}` + (tab ? `?tab=${encodeURIComponent(tab)}` : '');
                     document.body.appendChild(form);
                     form.submit();
                 });

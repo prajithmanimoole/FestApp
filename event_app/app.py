@@ -71,6 +71,7 @@ def ensure_schema_and_seed() -> None:
                 phone TEXT UNIQUE NOT NULL,
                 password TEXT NOT NULL,
                 name TEXT NOT NULL,
+                class_section TEXT,
                 game_id INTEGER,
                 team_id INTEGER,
                 is_admin INTEGER NOT NULL DEFAULT 0
@@ -141,14 +142,23 @@ def ensure_schema_and_seed() -> None:
             )
             """
         )
+        # Whitelist phones (admin-preloaded allowed phone numbers)
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS whitelist_phones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone TEXT UNIQUE NOT NULL
+            )
+            """
+        )
         db.commit()
 
         # Seed minimal data if empty: only admin user, no games
         user_count = cur.execute('SELECT COUNT(1) FROM users').fetchone()[0]
         if user_count == 0:
             cur.execute(
-                'INSERT INTO users (phone, password, name, is_admin) VALUES (?,?,?,?)',
-                ('9990001111', 'admin123', 'Admin User', 1),
+                'INSERT INTO users (phone, password, name, class_section, is_admin) VALUES (?,?,?,?,?)',
+                ('9990001111', 'admin123', 'Admin User', 'ADMIN', 1),
             )
         # Ensure admin exists in allowed_users
         allowed_admin = cur.execute('SELECT 1 FROM allowed_users WHERE phone = ?', ('9990001111',)).fetchone()
@@ -166,6 +176,15 @@ def ensure_schema_and_seed() -> None:
                     (row[0], row[1], row[2], row[3]),
                 )
         db.commit()
+
+        # Add class_section column to users if missing (migration for existing DBs)
+        try:
+            cols = [r[1] for r in cur.execute('PRAGMA table_info(users)').fetchall()]
+            if 'class_section' not in cols:
+                cur.execute('ALTER TABLE users ADD COLUMN class_section TEXT')
+                db.commit()
+        except Exception:
+            pass
 
 
 def fetch_current_user() -> Optional[sqlite3.Row]:
@@ -204,23 +223,26 @@ def register_routes(app: Flask) -> None:
         if request.method == 'POST':
             phone = request.form.get('phone', '').strip()
             password = request.form.get('password', '').strip()
-            # Validate against allowed_users first
-            allowed = g.db.execute('SELECT * FROM allowed_users WHERE phone = ? AND password = ?', (phone, password)).fetchone()
-            if allowed:
-                # Ensure a corresponding users row exists
-                user_row = g.db.execute('SELECT * FROM users WHERE phone = ?', (phone,)).fetchone()
-                if not user_row:
-                    cur = g.db.cursor()
-                    cur.execute('INSERT INTO users (phone, password, name, is_admin) VALUES (?,?,?,?)', (allowed['phone'], allowed['password'], allowed['name'], allowed['is_admin']))
-                    g.db.commit()
-                    user_row = g.db.execute('SELECT * FROM users WHERE phone = ?', (phone,)).fetchone()
-                # Sync admin flag and name if changed
-                if user_row['is_admin'] != allowed['is_admin'] or user_row['name'] != allowed['name']:
-                    g.db.execute('UPDATE users SET is_admin = ?, name = ? WHERE id = ?', (allowed['is_admin'], allowed['name'], user_row['id']))
-                    g.db.commit()
+            # First, check against users table
+            user_row = g.db.execute('SELECT * FROM users WHERE phone = ? AND password = ?', (phone, password)).fetchone()
+            if user_row:
                 session['user_id'] = user_row['id']
                 flash('Signed in successfully.', 'success')
                 return redirect(url_for('dashboard'))
+            # Backwards compatibility: allow login using allowed_users to auto-create user
+            allowed = g.db.execute('SELECT * FROM allowed_users WHERE phone = ? AND password = ?', (phone, password)).fetchone()
+            if allowed:
+                cur = g.db.cursor()
+                cur.execute(
+                    'INSERT OR IGNORE INTO users (phone, password, name, class_section, is_admin) VALUES (?,?,?,?,?)',
+                    (allowed['phone'], allowed['password'], allowed['name'], None, allowed['is_admin'])
+                )
+                g.db.commit()
+                user_row = g.db.execute('SELECT * FROM users WHERE phone = ?', (phone,)).fetchone()
+                if user_row:
+                    session['user_id'] = user_row['id']
+                    flash('Signed in successfully.', 'success')
+                    return redirect(url_for('dashboard'))
             flash('Invalid credentials.', 'danger')
         return render_template('login.html')
 
@@ -365,6 +387,8 @@ def register_routes(app: Flask) -> None:
         if not user or not user['is_admin']:
             flash('Admin access required.', 'danger')
             return redirect(url_for('login'))
+        # Determine which tab should be active
+        active_tab = request.args.get('tab') or 'overview'
 
         # Handle Add Game form
         if request.method == 'POST' and request.form.get('form_type') == 'add_game':
@@ -383,6 +407,7 @@ def register_routes(app: Flask) -> None:
                     g.db.execute('INSERT INTO games (name, description, slots, type, team_size) VALUES (?,?,?,?,NULL)', (name, description, slots, gtype))
                 g.db.commit()
                 flash('Game added.', 'success')
+                active_tab = 'addgame'
             else:
                 flash('Invalid game details.', 'danger')
 
@@ -406,6 +431,51 @@ def register_routes(app: Flask) -> None:
                         g.db.execute('INSERT INTO users (phone, password, name, is_admin) VALUES (?,?,?,0)', (cphone, cpass, cname))
                         g.db.commit()
                     flash('Credential added.', 'success')
+                # stay on overview (credentials accordion)
+                active_tab = 'overview'
+
+        # Handle Whitelist add (single)
+        if request.method == 'POST' and request.form.get('form_type') == 'add_whitelist':
+            wphone = request.form.get('wl_phone', '').strip()
+            if not wphone:
+                flash('Phone is required for whitelist.', 'danger')
+            else:
+                try:
+                    g.db.execute('INSERT INTO whitelist_phones (phone) VALUES (?)', (wphone,))
+                    g.db.commit()
+                    flash('Phone added to whitelist.', 'success')
+                except Exception:
+                    flash('Phone already exists in whitelist.', 'warning')
+            active_tab = 'whitelist'
+
+        # Handle Whitelist bulk add (textarea with newline-separated phones)
+        if request.method == 'POST' and request.form.get('form_type') == 'bulk_whitelist':
+            phones_text = request.form.get('wl_phones', '').strip()
+            if not phones_text:
+                flash('Provide one or more phone numbers.', 'danger')
+            else:
+                phones = [p.strip() for p in phones_text.split('\n') if p.strip()]
+                inserted = 0
+                for p in phones:
+                    try:
+                        g.db.execute('INSERT INTO whitelist_phones (phone) VALUES (?)', (p,))
+                        inserted += 1
+                    except Exception:
+                        pass
+                g.db.commit()
+                flash(f'Whitelist updated. Added {inserted} new phone(s).', 'success')
+            active_tab = 'whitelist'
+
+        # Handle Whitelist remove
+        if request.method == 'POST' and request.form.get('form_type') == 'remove_whitelist':
+            rphone = request.form.get('wl_phone_remove', '').strip()
+            if not rphone:
+                flash('Phone is required.', 'danger')
+            else:
+                g.db.execute('DELETE FROM whitelist_phones WHERE phone = ?', (rphone,))
+                g.db.commit()
+                flash('Phone removed from whitelist (if it existed).', 'info')
+            active_tab = 'whitelist'
 
         games = g.db.execute('SELECT * FROM games ORDER BY id').fetchall()
         single_participants = g.db.execute(
@@ -493,6 +563,7 @@ def register_routes(app: Flask) -> None:
 
         # Allowed users (credentials list)
         allowed_list = g.db.execute('SELECT * FROM allowed_users ORDER BY name').fetchall()
+        whitelist_list = g.db.execute('SELECT * FROM whitelist_phones ORDER BY phone').fetchall()
 
         return render_template(
             'admin.html',
@@ -508,7 +579,9 @@ def register_routes(app: Flask) -> None:
             total_filled=total_filled,
             participants_overview=participants_overview,
             allowed_list=allowed_list,
+            whitelist_list=whitelist_list,
             game_to_teams=game_to_teams,
+            active_tab=active_tab,
         )
 
     @app.route('/admin/export')
@@ -561,12 +634,12 @@ def register_routes(app: Flask) -> None:
         if not game or game['type'] != 'team':
             flash('Select a valid team game.', 'danger')
             return redirect(url_for('dashboard'))
-        # Enforce team size if configured (including leader)
+        # Enforce upper-bound team size if configured (including leader)
         if game['team_size'] is not None:
             expected = int(game['team_size'])
-            if 1 + len(member_phones) != expected:
-                need = expected - 1
-                flash(f'This game requires exactly {expected} members per team (leader + {need}).', 'danger')
+            if 1 + len(member_phones) > expected:
+                max_additional = expected - 1
+                flash(f'This game allows at most {expected} members per team (leader + up to {max_additional}).', 'danger')
                 return redirect(url_for('dashboard'))
         # Validate leader
         leader = g.db.execute('SELECT * FROM users WHERE phone = ?', (leader_phone,)).fetchone()
@@ -603,7 +676,7 @@ def register_routes(app: Flask) -> None:
             cur.execute('INSERT INTO team_members (team_id, user_id) VALUES (?,?)', (team_id, m['id']))
             cur.execute('UPDATE users SET game_id = ?, team_id = ? WHERE id = ?', (game_id, team_id, m['id']))
         g.db.commit()
-        flash('Team created successfully.', 'success')
+        flash(f'Team created successfully. Team Code: {team_code}', 'success')
         return redirect(url_for('dashboard'))
 
     @app.route('/admin/single/add', methods=['POST'])
@@ -680,7 +753,7 @@ def register_routes(app: Flask) -> None:
         cur.execute('UPDATE users SET game_id = ?, team_id = ? WHERE id = ?', (team['game_id'], team['id'], member['id']))
         g.db.commit()
         flash(f'Successfully added {member["name"]} to team "{team["name"]}".', 'success')
-        return redirect(url_for('admin'))
+        return redirect(url_for('admin', tab='addmember'))
 
     @app.route('/admin/user/remove/<int:user_id>', methods=['POST'])
     def admin_remove_user(user_id: int):
@@ -703,9 +776,37 @@ def register_routes(app: Flask) -> None:
             g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (user_id,))
         g.db.commit()
         flash('Participant removed.', 'success')
-        return redirect(url_for('admin'))
+        # Preserve tab if provided (e.g., gamesctl)
+        tab = request.args.get('tab') or 'overview'
+        return redirect(url_for('admin', tab=tab))
+
+    @app.route('/api/remove-user/<int:user_id>', methods=['POST'])
+    def api_remove_user(user_id: int):
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            return {"error": "Admin access required"}, 401
+        try:
+            # If user is leader of a team, delete team and unassign all members
+            team = g.db.execute('SELECT * FROM teams WHERE leader_user_id = ?', (user_id,)).fetchone()
+            if team:
+                member_ids = [r['user_id'] for r in g.db.execute('SELECT user_id FROM team_members WHERE team_id = ?', (team['id'],)).fetchall()]
+                for mid in member_ids:
+                    g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (mid,))
+                g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (team['leader_user_id'],))
+                g.db.execute('DELETE FROM team_members WHERE team_id = ?', (team['id'],))
+                g.db.execute('DELETE FROM teams WHERE id = ?', (team['id'],))
+            else:
+                # If user is a regular team member or single participant, unassign
+                g.db.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
+                g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL WHERE id = ?', (user_id,))
+            g.db.commit()
+            return {"success": True}
+        except Exception as e:
+            g.db.rollback()
+            return {"error": str(e)}, 500
         
     @app.route('/admin/api-complete-remove-user/<int:user_id>', methods=['GET', 'POST'])
+    @app.route('/api/complete-remove-user/<int:user_id>', methods=['POST'])
     def api_complete_remove_user(user_id: int):
         """Local version of the complete user removal API endpoint"""
         user = fetch_current_user()
@@ -742,6 +843,43 @@ def register_routes(app: Flask) -> None:
             import traceback
             return {"error": str(e), "details": traceback.format_exc()}, 500
 
+    @app.route('/admin/user/edit/<int:user_id>', methods=['POST'])
+    def admin_edit_user(user_id: int):
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+        name = request.form.get('edit_name', '').strip()
+        phone = request.form.get('edit_phone', '').strip()
+        password = request.form.get('edit_password', '').strip()
+        class_section = request.form.get('edit_class_section', '').strip() or None
+        original_phone = request.form.get('original_phone', '').strip()
+        if not name or not phone or not password:
+            flash('Name, phone and password are required.', 'danger')
+            return redirect(url_for('admin'))
+        try:
+            # Ensure phone uniqueness if changed
+            exists = g.db.execute('SELECT id FROM users WHERE phone = ? AND id != ?', (phone, user_id)).fetchone()
+            if exists:
+                flash('Another user already has this phone number.', 'danger')
+                return redirect(url_for('admin'))
+            g.db.execute('UPDATE users SET name = ?, phone = ?, password = ?, class_section = ? WHERE id = ?', (name, phone, password, class_section, user_id))
+            # Sync allowed_users. If there is a row for original_phone, update it; else upsert by new phone
+            row = g.db.execute('SELECT id FROM allowed_users WHERE phone = ?', (original_phone or phone,)).fetchone()
+            if row:
+                g.db.execute('UPDATE allowed_users SET name = ?, phone = ?, password = ? WHERE id = ?', (name, phone, password, row['id']))
+            else:
+                # insert if not exists for new phone
+                exists_new = g.db.execute('SELECT id FROM allowed_users WHERE phone = ?', (phone,)).fetchone()
+                if not exists_new:
+                    g.db.execute('INSERT INTO allowed_users (name, phone, password, is_admin) VALUES (?,?,?,0)', (name, phone, password))
+            g.db.commit()
+            flash('User updated.', 'success')
+        except Exception as e:
+            g.db.rollback()
+            flash(f'Failed to update user: {e}', 'danger')
+        return redirect(url_for('admin'))
+
     @app.route('/admin/team/delete/<int:team_id>', methods=['POST'])
     def admin_delete_team(team_id: int):
         user = fetch_current_user()
@@ -757,7 +895,8 @@ def register_routes(app: Flask) -> None:
         g.db.execute('DELETE FROM teams WHERE id = ?', (team_id,))
         g.db.commit()
         flash('Team deleted.', 'success')
-        return redirect(url_for('admin'))
+        tab = request.args.get('tab') or 'gamesctl'
+        return redirect(url_for('admin', tab=tab))
 
     @app.route('/admin/game/delete/<int:game_id>', methods=['POST'])
     def admin_delete_game(game_id: int):
@@ -773,13 +912,90 @@ def register_routes(app: Flask) -> None:
         g.db.execute('DELETE FROM games WHERE id = ?', (game_id,))
         g.db.commit()
         flash('Game deleted.', 'success')
+        tab = request.args.get('tab') or 'gamesctl'
+        return redirect(url_for('admin', tab=tab))
+
+    @app.route('/admin/remove-participants', methods=['POST'])
+    def admin_remove_participants():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+        try:
+            # Remove team memberships and teams
+            g.db.execute('DELETE FROM team_members')
+            g.db.execute('DELETE FROM teams')
+            # Delete all non-admin users
+            g.db.execute('DELETE FROM users WHERE is_admin = 0')
+            g.db.commit()
+            flash('All participants removed. Admin accounts preserved. Games/whitelist unchanged.', 'success')
+        except Exception as e:
+            g.db.rollback()
+            flash(f'Failed to remove participants: {e}', 'danger')
         return redirect(url_for('admin'))
 
-    # Disable public signup; keep route for compatibility
+    @app.route('/admin/clear-all', methods=['POST'])
+    def admin_clear_all():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+        try:
+            # Remove all team memberships and teams
+            g.db.execute('DELETE FROM team_members')
+            g.db.execute('DELETE FROM teams')
+            # Unassign any remaining users from games/teams just in case
+            g.db.execute('UPDATE users SET game_id = NULL, team_id = NULL')
+            # Remove all games
+            g.db.execute('DELETE FROM games')
+            # Remove all non-admin users
+            g.db.execute('DELETE FROM users WHERE is_admin = 0')
+            # Keep only admin rows in allowed_users
+            g.db.execute('DELETE FROM allowed_users WHERE is_admin = 0')
+            # Clear whitelist entirely
+            g.db.execute('DELETE FROM whitelist_phones')
+            g.db.commit()
+            flash('All data cleared except admin accounts.', 'success')
+        except Exception as e:
+            g.db.rollback()
+            flash(f'Failed to clear data: {e}', 'danger')
+        return redirect(url_for('admin'))
+
+    # Public signup with whitelist enforcement
     @app.route('/signup', methods=['GET', 'POST'])
     def signup():
-        flash('Signup is disabled. Please use credentials provided by admin.', 'info')
-        return redirect(url_for('login'))
+        if request.method == 'POST':
+            name = request.form.get('name', '').strip()
+            class_section = request.form.get('class_section', '').strip()
+            phone = request.form.get('phone', '').strip()
+            password = request.form.get('password', '').strip()
+
+            if not name or not phone or not password or not class_section:
+                flash('All fields are required.', 'danger')
+                return render_template('signup.html')
+
+            # Check whitelist
+            wl = g.db.execute('SELECT 1 FROM whitelist_phones WHERE phone = ?', (phone,)).fetchone()
+            if not wl:
+                flash('Phone number is not whitelisted. Contact admin.', 'danger')
+                return render_template('signup.html')
+
+            # Check if already registered
+            exists = g.db.execute('SELECT 1 FROM users WHERE phone = ?', (phone,)).fetchone()
+            if exists:
+                flash('This phone is already registered. Please login.', 'warning')
+                return redirect(url_for('login'))
+
+            # Create user
+            g.db.execute(
+                'INSERT INTO users (phone, password, name, class_section, is_admin) VALUES (?,?,?,?,0)',
+                (phone, password, name, class_section)
+            )
+            g.db.commit()
+            flash('Signup successful. You can now login.', 'success')
+            return redirect(url_for('login'))
+
+        return render_template('signup.html')
 
 
 app = create_app()
