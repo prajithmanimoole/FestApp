@@ -10,7 +10,11 @@ from flask import Flask, g, render_template, request, redirect, url_for, session
 
 
 # Use environment variable if set, otherwise use the default path
-DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'database.db'))
+# Use /tmp on Vercel or any serverless read-only FS
+if os.environ.get('VERCEL') or os.environ.get('VC_ENV') or os.environ.get('SERVERLESS'):
+    DATABASE_PATH = os.environ.get('DATABASE_PATH', '/tmp/database.db')
+else:
+    DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'database.db'))
 
 
 def generate_team_code() -> str:
@@ -54,7 +58,7 @@ def create_app() -> Flask:
 
 
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE_PATH)
+    conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     return conn
 
