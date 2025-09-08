@@ -97,13 +97,13 @@ def init_db():
     except Exception as e:
         print(f"Database initialization error: {e}")
 
-# Create Flask app
+# Create Flask app factory
 def create_app():
-    app = Flask(__name__, 
-               template_folder='../event_app/templates',
-               static_folder='../event_app/static')
+    app = Flask(__name__,
+                template_folder='../event_app/templates',
+                static_folder='../event_app/static')
     app.secret_key = 'your-secret-key-here'
-    
+
     @app.before_request
     def before_request():
         g.db = get_db()
@@ -113,10 +113,19 @@ def create_app():
         if hasattr(g, 'db'):
             g.db.close()
 
-    # Routes
     @app.route('/')
     def index():
         return redirect(url_for('login'))
+
+    return app
+
+# Instantiate app for Vercel and initialize database once on cold start
+app = create_app()
+try:
+    init_db()
+except Exception as _e:
+    # Log but don't crash
+    print(f"init_db error: {_e}")
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
