@@ -9,12 +9,15 @@ from typing import Optional, Dict, Any, List
 from flask import Flask, g, render_template, request, redirect, url_for, session, flash, send_file
 
 
-# Use environment variable if set, otherwise use the default path
-# Use /tmp on Vercel or any serverless read-only FS
-if os.environ.get('VERCEL') or os.environ.get('VC_ENV') or os.environ.get('SERVERLESS'):
-    DATABASE_PATH = os.environ.get('DATABASE_PATH', '/tmp/database.db')
-else:
-    DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'database.db'))
+# Local/default database path only; remove serverless-specific logic
+DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'database.db'))
+
+
+def get_db():
+    """Connect to the database and return a connection object with row factory"""
+    conn = sqlite3.connect(DATABASE_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def generate_team_code() -> str:
