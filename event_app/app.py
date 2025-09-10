@@ -16,10 +16,19 @@ from io import BytesIO
 
 # Local import for certificate generation
 try:
+    # When imported as a module
     from .certificate_generator import generate_certificate
-except ImportError:
-    # Allow direct execution
-    from certificate_generator import generate_certificate
+except (ImportError, ValueError):
+    # When run directly
+    try:
+        from certificate_generator import generate_certificate
+    except ImportError:
+        # If the certificate generator isn't available, provide a stub function
+        def generate_certificate(student_name, class_section, event_name, date, output_path=None):
+            buffer = BytesIO()
+            buffer.write(b"Certificate generation failed - ReportLab not installed")
+            buffer.seek(0)
+            return buffer
 
 # Check if running on Railway (DATABASE_URL environment variable will be set)
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -28,6 +37,10 @@ DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__f
 
 # Flag to determine if we're using PostgreSQL
 USING_POSTGRES = DATABASE_URL is not None and DATABASE_URL.startswith('postgres')
+
+# Helper function to get the appropriate placeholder for SQL queries
+def get_placeholder():
+    return '%s' if USING_POSTGRES else '?'
 
 
 def get_db():
@@ -52,6 +65,8 @@ def get_db():
             port=port,
             cursor_factory=RealDictCursor
         )
+        # Set autocommit mode for PostgreSQL to better handle transactions
+        conn.autocommit = True
         return conn
     else:
         # SQLite connection
@@ -560,40 +575,48 @@ def register_routes(app: Flask) -> None:
             flash('Join an event first to see opponents.', 'warning')
             return redirect(url_for('dashboard'))
 
-        game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
+        # Use the appropriate placeholder based on database type
+        placeholder = '%s' if USING_POSTGRES else '?'
+        
+        game = g.db.execute(f'SELECT * FROM games WHERE id = {placeholder}', (user['game_id'],)).fetchone()
         if not game:
             flash('Game not found.', 'danger')
             return redirect(url_for('dashboard'))
 
         if game['type'] == 'single':
             opponents_list = g.db.execute(
-                'SELECT u.* FROM users u WHERE u.game_id = ? AND (u.team_id IS NULL) AND u.id != ? ORDER BY u.name',
+                f'SELECT u.* FROM users u WHERE u.game_id = {placeholder} AND (u.team_id IS NULL) AND u.id != {placeholder} ORDER BY u.name',
                 (user['game_id'], user['id']),
             ).fetchall()
             return render_template('opponents.html', game=game, view_type='single', opponents=opponents_list)
 
         # Team game: list other teams and their members
-        my_team = g.db.execute('SELECT * FROM teams WHERE id = ?', (user['team_id'],)).fetchone()
+        placeholder = '%s' if USING_POSTGRES else '?'
+        
+        my_team = g.db.execute(f'SELECT * FROM teams WHERE id = {placeholder}', (user['team_id'],)).fetchone()
         if not my_team:
             flash('Your team was not found.', 'danger')
             return redirect(url_for('dashboard'))
 
         other_teams = g.db.execute(
-            'SELECT t.*, u.name AS leader_name, u.phone AS leader_phone '
-            'FROM teams t JOIN users u ON u.id = t.leader_user_id '
-            'WHERE t.game_id = ? AND t.id != ? ORDER BY t.name',
+            f'SELECT t.*, u.name AS leader_name, u.phone AS leader_phone '
+            f'FROM teams t JOIN users u ON u.id = t.leader_user_id '
+            f'WHERE t.game_id = {placeholder} AND t.id != {placeholder} ORDER BY t.name',
             (my_team['game_id'], my_team['id']),
         ).fetchall()
 
         # Build members map for all other teams
         team_ids = [t['id'] for t in other_teams]
         members_map: Dict[int, List[sqlite3.Row]] = {}
-        if team_ids:
-            placeholders = ','.join(['?'] * len(team_ids))
+        
+        # Use a more compatible approach that works with both SQLite and PostgreSQL
+        placeholder = '%s' if USING_POSTGRES else '?'
+        
+        for team_id in team_ids:
             rows = g.db.execute(
                 f'SELECT tm.team_id, u.* FROM team_members tm JOIN users u ON u.id = tm.user_id '
-                f'WHERE tm.team_id IN ({placeholders}) ORDER BY u.name',
-                tuple(team_ids),
+                f'WHERE tm.team_id = {placeholder} ORDER BY u.name',
+                (team_id,)
             ).fetchall()
             for r in rows:
                 members_map.setdefault(r['team_id'], []).append(r)
@@ -951,8 +974,15 @@ def register_routes(app: Flask) -> None:
         # Create team and assign
         cur = g.db.cursor()
         team_code = generate_team_code()
-        cur.execute('INSERT INTO teams (name, leader_user_id, game_id, team_code) VALUES (?,?,?,?)', (team_name, leader['id'], game_id, team_code))
-        team_id = cur.lastrowid
+        
+        if USING_POSTGRES:
+            cur.execute('INSERT INTO teams (name, leader_user_id, game_id, team_code) VALUES (%s,%s,%s,%s) RETURNING id', 
+                      (team_name, leader['id'], game_id, team_code))
+            team_id = cur.fetchone()['id']
+        else:
+            cur.execute('INSERT INTO teams (name, leader_user_id, game_id, team_code) VALUES (?,?,?,?)', 
+                      (team_name, leader['id'], game_id, team_code))
+            team_id = cur.lastrowid
         # Assign leader
         cur.execute('UPDATE users SET game_id = ?, team_id = ? WHERE id = ?', (game_id, team_id, leader['id']))
         # Add members
@@ -1272,14 +1302,17 @@ def register_routes(app: Flask) -> None:
                 team_ids = [t['id'] for t in teams]
                 members_map: Dict[int, List[sqlite3.Row]] = {}
                 if team_ids:
-                    placeholders = ','.join(['?'] * len(team_ids))
-                    rows = g.db.execute(
-                        f'SELECT tm.team_id, u.name, u.phone, u.class_section FROM team_members tm JOIN users u ON u.id = tm.user_id '
-                        f'WHERE tm.team_id IN ({placeholders}) ORDER BY u.name',
-                        tuple(team_ids),
-                    ).fetchall()
-                    for r in rows:
-                        members_map.setdefault(r['team_id'], []).append(r)
+                    # Use a more compatible approach for both SQLite and PostgreSQL
+                    placeholder = '%s' if USING_POSTGRES else '?'
+                    
+                    for team_id in team_ids:
+                        rows = g.db.execute(
+                            f'SELECT tm.team_id, u.name, u.phone, u.class_section FROM team_members tm JOIN users u ON u.id = tm.user_id '
+                            f'WHERE tm.team_id = {placeholder} ORDER BY u.name',
+                            (team_id,)
+                        ).fetchall()
+                        for r in rows:
+                            members_map.setdefault(r['team_id'], []).append(r)
                 entry['teams'] = teams
                 entry['members_map'] = members_map
             per_game[gr['id']] = entry
