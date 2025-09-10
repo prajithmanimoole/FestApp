@@ -19,7 +19,16 @@ def setup_certificate_template():
     
     if not os.path.exists(template_path):
         print("Certificate template not found.")
-        print(f"Please copy your certificate template image to: {template_path}")
+        print(f"Creating a default certificate template at: {template_path}")
+        
+        try:
+            # Import and run the create_default_template function
+            from create_default_template import create_default_template
+            created_path = create_default_template()
+            print(f"Default template created successfully at {created_path}")
+        except Exception as e:
+            print(f"Error creating default template: {e}")
+            print(f"Please copy your certificate template image to: {template_path}")
     else:
         print(f"Certificate template already exists at: {template_path}")
 

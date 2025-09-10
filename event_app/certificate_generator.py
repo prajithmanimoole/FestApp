@@ -104,8 +104,29 @@ def generate_certificate(student_name, class_section, event_name, date, output_p
     current_dir = os.path.dirname(os.path.abspath(__file__))
     template_path = os.path.join(current_dir, 'static', 'certificates', 'certificate_template.jpg')
     
-    # Draw the template image as background
-    c.drawImage(template_path, 0, 0, width=width, height=height, preserveAspectRatio=True)
+    # Check if template exists and use it, otherwise create a fallback template
+    try:
+        # Try to use the template image as background
+        if os.path.exists(template_path):
+            c.drawImage(template_path, 0, 0, width=width, height=height, preserveAspectRatio=True)
+        else:
+            raise FileNotFoundError(f"Certificate template not found at {template_path}")
+    except Exception as e:
+        # Fallback to creating a simple certificate
+        print(f"Error using template image: {e}")
+        
+        # Set background color
+        c.setFillColor(white)
+        c.rect(0, 0, width, height, fill=True)
+        
+        # Draw border
+        c.setStrokeColor(black)
+        c.setLineWidth(3)
+        c.rect(20, 20, width-40, height-40, fill=0)
+        
+        # Title
+        c.setFont("Helvetica-Bold", 30)
+        c.drawCentredString(width/2, height-70, "CERTIFICATE OF PARTICIPATION")
     
     # Student name (centered in the dotted line area)
     c.setFillColor(black)
@@ -123,6 +144,15 @@ def generate_certificate(student_name, class_section, event_name, date, output_p
     c.setFont("Helvetica", 14)
     date_y_position = height/2 - 120  # Position for the date
     c.drawCentredString(width/2, date_y_position, f"held during {current_date}")
+    
+    # Add signature lines if using fallback template
+    if not os.path.exists(template_path):
+        c.setFont("Helvetica", 10)
+        c.drawCentredString(width/3, 80, "____________________")
+        c.drawCentredString(width/3, 60, "Organizer Signature")
+        
+        c.drawCentredString(2*width/3, 80, "____________________")
+        c.drawCentredString(2*width/3, 60, "Principal Signature")
     
     c.save()
     buffer.seek(0)
