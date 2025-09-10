@@ -63,9 +63,7 @@
           <button class="btn btn-outline-secondary mt-auto" disabled>Admin cannot register</button>
         {% else %}
           <div class="d-grid gap-2 mt-auto">
-            {% if registration and registration.game.id == game.id %}
-              <a href="{{ url_for('opponents') }}" class="btn btn-outline-primary">See Opponents</a>
-            {% endif %}
+            <a href="{{ url_for('opponents') }}" class="btn btn-outline-primary">See Opponents</a>
             <button class="btn btn-outline-secondary" disabled>Already Registered</button>
           </div>
         {% endif %}
