@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Participants List{% endblock %}
+{% block content %}
+<div class="d-print-none d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0">Participants List (by Game)</h4>
+  <div>
+    <a href="{{ url_for('admin_export') }}" class="btn btn-sm btn-outline-success">Download CSV</a>
+    <button class="btn btn-sm btn-primary" onclick="window.print()">Print</button>
+    <a href="{{ url_for('admin', tab='gamesctl') }}" class="btn btn-sm btn-secondary">Back to Admin</a>
+  </div>
+  </div>
+
+{% for g in games %}
+  <div class="card clear-box mb-3">
+    <div class="card-body">
+      <h5 class="card-title mb-2">{{ g.name }} <span class="badge bg-secondary text-uppercase">{{ g.type }}</span></h5>
+
+      {% set entry = per_game.get(g.id) %}
+      {% if g.type == 'single' %}
+        {% set participants = entry.participants %}
+        {% if participants|length == 0 %}
+          <div class="text-muted">No participants.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>#</th><th>Name</th><th>Phone</th><th>Class/Section</th></tr></thead>
+              <tbody>
+                {% for p in participants %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td>{{ p.name }}</td>
+                  <td>{{ p.phone }}</td>
+                  <td>{{ p.class_section or '-' }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      {% else %}
+        {% set teams = entry.teams %}
+        {% if teams|length == 0 %}
+          <div class="text-muted">No teams.</div>
+        {% else %}
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead><tr><th>#</th><th>Team</th><th>Code</th><th>Leader</th><th>Leader Phone</th><th>Leader Class</th><th>Members</th></tr></thead>
+              <tbody>
+                {% for t in teams %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  <td>{{ t.name }}</td>
+                  <td><span class="badge bg-info">{{ t.team_code }}</span></td>
+                  <td>{{ t.leader_name }}</td>
+                  <td>{{ t.leader_phone }}</td>
+                  <td>{{ t.leader_class_section or '-' }}</td>
+                  <td style="min-width:220px;">
+                    {% set members = entry.members_map.get(t.id, []) %}
+                    {% if members|length == 0 %}
+                      <span class="text-muted">-</span>
+                    {% else %}
+                      <ul class="mb-0">
+                        {% for m in members %}
+                        <li>{{ m.name }} ({{ m.phone }}){% if m.class_section %} - {{ m.class_section }}{% endif %}</li>
+                        {% endfor %}
+                      </ul>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
+{% endblock %}
+
+
