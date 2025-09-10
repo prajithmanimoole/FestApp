@@ -2,22 +2,53 @@ import os
 import sqlite3
 import random
 import string
+import sys
 from contextlib import closing
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
+from urllib.parse import urlparse
 
 from flask import Flask, g, render_template, request, redirect, url_for, session, flash, send_file
+import secrets
+from io import BytesIO
 
-
-# Local/default database path only; remove serverless-specific logic
+# Check if running on Railway (DATABASE_URL environment variable will be set)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+# Local/default database path for SQLite
 DATABASE_PATH = os.environ.get('DATABASE_PATH', os.path.join(os.path.dirname(__file__), 'database.db'))
+
+# Flag to determine if we're using PostgreSQL
+USING_POSTGRES = DATABASE_URL is not None and DATABASE_URL.startswith('postgres')
 
 
 def get_db():
     """Connect to the database and return a connection object with row factory"""
-    conn = sqlite3.connect(DATABASE_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    if USING_POSTGRES:
+        import psycopg2
+        from psycopg2.extras import RealDictCursor
+        
+        # Parse DATABASE_URL to get connection parameters
+        url = urlparse(DATABASE_URL)
+        dbname = url.path[1:]
+        user = url.username
+        password = url.password
+        host = url.hostname
+        port = url.port
+        
+        conn = psycopg2.connect(
+            dbname=dbname,
+            user=user,
+            password=password,
+            host=host,
+            port=port,
+            cursor_factory=RealDictCursor
+        )
+        return conn
+    else:
+        # SQLite connection
+        conn = sqlite3.connect(DATABASE_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
 
 
 def generate_team_code() -> str:
@@ -42,10 +73,17 @@ def create_app() -> Flask:
     def before_request() -> None:
         g.db = get_db()
         try:
-            exists = g.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='allowed_users'").fetchone()
+            if USING_POSTGRES:
+                with g.db.cursor() as cursor:
+                    cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'allowed_users'")
+                    exists = cursor.fetchone()
+            else:
+                exists = g.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='allowed_users'").fetchone()
+            
             if not exists:
                 ensure_schema_and_seed()
-        except Exception:
+        except Exception as e:
+            print(f"Database setup error: {e}", file=sys.stderr)
             ensure_schema_and_seed()
 
     @app.teardown_request
@@ -59,44 +97,137 @@ def create_app() -> Flask:
     register_routes(app)
     return app
 
-
-def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-
+reportlab
 def ensure_schema_and_seed() -> None:
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     with closing(get_db()) as db:
-        cur = db.cursor()
-        # Users
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                phone TEXT UNIQUE NOT NULL,
-                password TEXT NOT NULL,
-                name TEXT NOT NULL,
-                class_section TEXT,
-                game_id INTEGER,
-                team_id INTEGER,
-                is_admin INTEGER NOT NULL DEFAULT 0
+        if USING_POSTGRES:
+            with db.cursor() as cur:
+                # Users
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id SERIAL PRIMARY KEY,
+                        phone TEXT UNIQUE NOT NULL,
+                        password TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        class_section TEXT,
+                        game_id INTEGER,
+                        team_id INTEGER,
+                        is_admin INTEGER NOT NULL DEFAULT 0
+                    )
+                    """
+                )
+                # Games
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS games (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        description TEXT,
+                        slots INTEGER NOT NULL,
+                        type TEXT NOT NULL CHECK(type IN ('single','team')),
+                        team_size INTEGER
+                    )
+                    """
+                )
+                # Teams
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS teams (
+                        id SERIAL PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        game_id INTEGER NOT NULL,
+                        leader_user_id INTEGER,
+                        team_code TEXT UNIQUE NOT NULL
+                    )
+                    """
+                )
+                # Team Members (linking table)
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS team_members (
+                        id SERIAL PRIMARY KEY,
+                        team_id INTEGER NOT NULL,
+                        user_id INTEGER NOT NULL,
+                        UNIQUE(team_id, user_id)
+                    )
+                    """
+                )
+                # Allowed Users (login whitelist)
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS allowed_users (
+                        id SERIAL PRIMARY KEY,
+                        phone TEXT UNIQUE NOT NULL,
+                        password TEXT NOT NULL,
+                        name TEXT NOT NULL,
+                        class_section TEXT
+                    )
+                    """
+                )
+                # Phone Whitelist
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS whitelist_phones (
+                        id SERIAL PRIMARY KEY,
+                        phone TEXT UNIQUE NOT NULL
+                    )
+                    """
+                )
+                
+                # Certificate settings
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS certificate_settings (
+                        id SERIAL PRIMARY KEY,
+                        certificates_enabled INTEGER NOT NULL DEFAULT 0,
+                        event_date TEXT
+                    )
+                    """
+                )
+                
+                # Certificate downloads tracking
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS certificate_downloads (
+                        id SERIAL PRIMARY KEY,
+                        user_id INTEGER NOT NULL,
+                        download_date TEXT NOT NULL,
+                        UNIQUE(user_id)
+                    )
+                    """
+                )
+                db.commit()
+        else:
+            cur = db.cursor()
+            # Users
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    phone TEXT UNIQUE NOT NULL,
+                    password TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    class_section TEXT,
+                    game_id INTEGER,
+                    team_id INTEGER,
+                    is_admin INTEGER NOT NULL DEFAULT 0
+                )
+                """
             )
-            """
-        )
-        # Games
-        cur.execute(
-            """
-            CREATE TABLE IF NOT EXISTS games (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL,
-                description TEXT,
-                slots INTEGER NOT NULL,
-                type TEXT NOT NULL CHECK(type IN ('single','team'))
+            # Games
+            cur.execute(
+                """
+                CREATE TABLE IF NOT EXISTS games (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT,
+                    slots INTEGER NOT NULL,
+                    type TEXT NOT NULL CHECK(type IN ('single','team'))
+                )
+                """
             )
-            """
-        )
         # Add team_size column if missing
         try:
             cols = [r[1] for r in cur.execute('PRAGMA table_info(games)').fetchall()]
@@ -155,6 +286,29 @@ def ensure_schema_and_seed() -> None:
             CREATE TABLE IF NOT EXISTS whitelist_phones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 phone TEXT UNIQUE NOT NULL
+            )
+            """
+        )
+        
+        # Certificate settings
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS certificate_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                certificates_enabled INTEGER NOT NULL DEFAULT 0,
+                event_date TEXT
+            )
+            """
+        )
+        
+        # Certificate downloads tracking
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS certificate_downloads (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                download_date TEXT NOT NULL,
+                UNIQUE(user_id)
             )
             """
         )
@@ -388,6 +542,62 @@ def register_routes(app: Flask) -> None:
         
         return render_template('join_team.html')
 
+    @app.route('/opponents')
+    def opponents():
+        user = fetch_current_user()
+        if not user:
+            return redirect(url_for('login'))
+        if not user['game_id']:
+            flash('Join an event first to see opponents.', 'warning')
+            return redirect(url_for('dashboard'))
+
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
+        if not game:
+            flash('Game not found.', 'danger')
+            return redirect(url_for('dashboard'))
+
+        if game['type'] == 'single':
+            opponents_list = g.db.execute(
+                'SELECT u.* FROM users u WHERE u.game_id = ? AND (u.team_id IS NULL) AND u.id != ? ORDER BY u.name',
+                (user['game_id'], user['id']),
+            ).fetchall()
+            return render_template('opponents.html', game=game, view_type='single', opponents=opponents_list)
+
+        # Team game: list other teams and their members
+        my_team = g.db.execute('SELECT * FROM teams WHERE id = ?', (user['team_id'],)).fetchone()
+        if not my_team:
+            flash('Your team was not found.', 'danger')
+            return redirect(url_for('dashboard'))
+
+        other_teams = g.db.execute(
+            'SELECT t.*, u.name AS leader_name, u.phone AS leader_phone '
+            'FROM teams t JOIN users u ON u.id = t.leader_user_id '
+            'WHERE t.game_id = ? AND t.id != ? ORDER BY t.name',
+            (my_team['game_id'], my_team['id']),
+        ).fetchall()
+
+        # Build members map for all other teams
+        team_ids = [t['id'] for t in other_teams]
+        members_map: Dict[int, List[sqlite3.Row]] = {}
+        if team_ids:
+            placeholders = ','.join(['?'] * len(team_ids))
+            rows = g.db.execute(
+                f'SELECT tm.team_id, u.* FROM team_members tm JOIN users u ON u.id = tm.user_id '
+                f'WHERE tm.team_id IN ({placeholders}) ORDER BY u.name',
+                tuple(team_ids),
+            ).fetchall()
+            for r in rows:
+                members_map.setdefault(r['team_id'], []).append(r)
+
+        return render_template(
+            'opponents.html',
+            game=game,
+            view_type='team',
+            my_team=my_team,
+            teams=other_teams,
+            members_map=members_map,
+        )
+
     @app.route('/admin', methods=['GET', 'POST'])
     def admin():
         user = fetch_current_user()
@@ -589,6 +799,15 @@ def register_routes(app: Flask) -> None:
             whitelist_list=whitelist_list,
             game_to_teams=game_to_teams,
             active_tab=active_tab,
+            cert_settings=g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone(),
+            certificate_downloads=g.db.execute('''
+                SELECT cd.download_date, u.name, u.phone, u.class_section, g.name as game_name
+                FROM certificate_downloads cd
+                JOIN users u ON u.id = cd.user_id
+                LEFT JOIN games g ON g.id = u.game_id
+                ORDER BY cd.download_date DESC
+                LIMIT 50
+            ''').fetchall(),
         )
 
     @app.route('/admin/export')
@@ -623,6 +842,55 @@ def register_routes(app: Flask) -> None:
         mem.write(output.getvalue().encode('utf-8'))
         mem.seek(0)
         filename = f"participants_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        return send_file(mem, mimetype='text/csv', as_attachment=True, download_name=filename)
+
+    @app.route('/admin/export/<int:game_id>')
+    def admin_export_game(game_id: int):
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+        # Get game
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (game_id,)).fetchone()
+        if not game:
+            flash('Game not found.', 'danger')
+            return redirect(url_for('admin', tab='gamesctl'))
+
+        import csv
+        from io import StringIO, BytesIO
+
+        output = StringIO()
+        writer = csv.writer(output)
+
+        if game['type'] == 'single':
+            writer.writerow(['Game', 'Participant Name', 'Phone', 'Class/Section'])
+            rows = g.db.execute(
+                'SELECT u.name, u.phone, u.class_section FROM users u WHERE u.game_id = ? AND (u.team_id IS NULL) ORDER BY u.name',
+                (game_id,),
+            ).fetchall()
+            for r in rows:
+                writer.writerow([game['name'], r['name'], r['phone'], r['class_section'] or ''])
+        else:
+            writer.writerow(['Game', 'Team', 'Team Code', 'Role', 'Name', 'Phone', 'Class/Section'])
+            # Leader rows
+            for t in g.db.execute(
+                'SELECT t.id, t.name AS team_name, t.team_code, u.name AS leader_name, u.phone AS leader_phone, u.class_section AS leader_class_section '
+                'FROM teams t JOIN users u ON u.id = t.leader_user_id WHERE t.game_id = ? ORDER BY t.name',
+                (game_id,),
+            ):
+                writer.writerow([game['name'], t['team_name'], t['team_code'], 'Leader', t['leader_name'], t['leader_phone'], t['leader_class_section'] or ''])
+                # Member rows
+                for m in g.db.execute(
+                    'SELECT u.name, u.phone, u.class_section FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE tm.team_id = ? ORDER BY u.name',
+                    (t['id'],),
+                ):
+                    writer.writerow([game['name'], t['team_name'], t['team_code'], 'Member', m['name'], m['phone'], m['class_section'] or ''])
+
+        mem = BytesIO()
+        mem.write(output.getvalue().encode('utf-8'))
+        mem.seek(0)
+        safe_name = str(game['name']).replace(' ', '_')
+        filename = f"{safe_name}_participants_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         return send_file(mem, mimetype='text/csv', as_attachment=True, download_name=filename)
 
     @app.route('/admin/team/create', methods=['POST'])
@@ -968,6 +1236,269 @@ def register_routes(app: Flask) -> None:
             flash(f'Failed to clear data: {e}', 'danger')
         return redirect(url_for('admin'))
 
+    @app.route('/admin/participants')
+    def admin_participants_list():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+
+        games = g.db.execute('SELECT * FROM games ORDER BY name').fetchall()
+        per_game: Dict[int, Dict[str, Any]] = {}
+        for gr in games:
+            entry: Dict[str, Any] = {'game': gr}
+            if gr['type'] == 'single':
+                participants = g.db.execute(
+                    'SELECT u.name, u.phone, u.class_section FROM users u WHERE u.game_id = ? AND (u.team_id IS NULL) ORDER BY u.name',
+                    (gr['id'],),
+                ).fetchall()
+                entry['participants'] = participants
+            else:
+                teams = g.db.execute(
+                    'SELECT t.id, t.name, t.team_code, u.name AS leader_name, u.phone AS leader_phone, u.class_section AS leader_class_section '
+                    'FROM teams t JOIN users u ON u.id = t.leader_user_id WHERE t.game_id = ? ORDER BY t.name',
+                    (gr['id'],),
+                ).fetchall()
+                # members per team
+                team_ids = [t['id'] for t in teams]
+                members_map: Dict[int, List[sqlite3.Row]] = {}
+                if team_ids:
+                    placeholders = ','.join(['?'] * len(team_ids))
+                    rows = g.db.execute(
+                        f'SELECT tm.team_id, u.name, u.phone, u.class_section FROM team_members tm JOIN users u ON u.id = tm.user_id '
+                        f'WHERE tm.team_id IN ({placeholders}) ORDER BY u.name',
+                        tuple(team_ids),
+                    ).fetchall()
+                    for r in rows:
+                        members_map.setdefault(r['team_id'], []).append(r)
+                entry['teams'] = teams
+                entry['members_map'] = members_map
+            per_game[gr['id']] = entry
+
+        return render_template('participants_print.html', games=games, per_game=per_game)
+
+    @app.route('/admin/export-pdf')
+    def admin_export_pdf():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+
+        try:
+            # Lazy import to avoid requirement when unused
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import mm
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
+            from reportlab.lib import colors
+        except Exception:
+            flash('PDF generation library not installed. Please install reportlab.', 'danger')
+            return redirect(url_for('admin'))
+
+        games = g.db.execute('SELECT * FROM games ORDER BY name').fetchall()
+
+        buf = BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=14*mm, rightMargin=14*mm, topMargin=16*mm, bottomMargin=16*mm)
+        styles = getSampleStyleSheet()
+        elements: List[Any] = []
+
+        title_style = styles['Title']
+        subtitle_style = ParagraphStyle('SubTitle', parent=styles['Heading2'], spaceAfter=6)
+        table_header_bg = colors.Color(0.92, 0.92, 0.92)
+
+        elements.append(Paragraph('Participants List (by Game)', title_style))
+        elements.append(Spacer(1, 6))
+        generated_on = datetime.now().strftime('%Y-%m-%d %H:%M')
+        elements.append(Paragraph(f'Generated on: {generated_on}', styles['Normal']))
+        elements.append(Spacer(1, 12))
+
+        for idx_game, gr in enumerate(games):
+            # Game header
+            subtitle = f"{gr['name']}  —  {gr['type'].upper()}"
+            elements.append(Paragraph(subtitle, subtitle_style))
+
+            if gr['type'] == 'single':
+                rows = [["#", "Name", "Phone", "Class/Section"]]
+                participants = g.db.execute(
+                    'SELECT u.name, u.phone, u.class_section FROM users u WHERE u.game_id = ? AND (u.team_id IS NULL) ORDER BY u.name',
+                    (gr['id'],),
+                ).fetchall()
+                for idx, p in enumerate(participants, start=1):
+                    rows.append([str(idx), p['name'], p['phone'], p['class_section'] or '-'])
+                if len(rows) == 1:
+                    rows.append(['-', 'No participants', '', ''])
+                table = Table(rows, repeatRows=1, colWidths=[12*mm, None, 32*mm, 32*mm])
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0,0), (-1,0), table_header_bg),
+                    ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                    ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                    ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                ]))
+                elements.append(table)
+                elements.append(Spacer(1, 10))
+            else:
+                # Team game
+                teams = g.db.execute(
+                    'SELECT t.id, t.name, t.team_code, u.name AS leader_name, u.phone AS leader_phone, u.class_section AS leader_class_section '
+                    'FROM teams t JOIN users u ON u.id = t.leader_user_id WHERE t.game_id = ? ORDER BY t.name',
+                    (gr['id'],),
+                ).fetchall()
+                if not teams:
+                    rows = [["-", "No teams", "", "", ""]]
+                    table = Table(rows, colWidths=[12*mm, None, 28*mm, 28*mm, 28*mm])
+                    elements.append(table)
+                    elements.append(Spacer(1, 8))
+                else:
+                    # Render each team with its own members table for clarity
+                    for t_idx, t in enumerate(teams, start=1):
+                        header = f"{t_idx}. Team: {t['name']}  (Code: {t['team_code']})"
+                        elements.append(Paragraph(header, styles['Heading3']))
+
+                        leader_rows = [["Leader", t['leader_name'], t['leader_phone'], t['leader_class_section'] or '-']]
+                        leader_table = Table(leader_rows, colWidths=[20*mm, None, 32*mm, 32*mm])
+                        leader_table.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (0,0), table_header_bg),
+                            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                            ('FONTNAME', (0,0), (0,0), 'Helvetica-Bold'),
+                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                        ]))
+                        elements.append(leader_table)
+
+                        member_header = [["#", "Member Name", "Phone", "Class/Section"]]
+                        members = g.db.execute(
+                            'SELECT u.name, u.phone, u.class_section FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE tm.team_id = ? ORDER BY u.name',
+                            (t['id'],),
+                        ).fetchall()
+                        member_rows = list(member_header)
+                        for midx, m in enumerate(members, start=1):
+                            member_rows.append([str(midx), m['name'], m['phone'], m['class_section'] or '-'])
+                        if len(member_rows) == 1:
+                            member_rows.append(['-', 'No members yet', '', ''])
+                        member_table = Table(member_rows, repeatRows=1, colWidths=[12*mm, None, 32*mm, 32*mm])
+                        member_table.setStyle(TableStyle([
+                            ('BACKGROUND', (0,0), (-1,0), table_header_bg),
+                            ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                            ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                        ]))
+                        elements.append(member_table)
+                        elements.append(Spacer(1, 8))
+
+            # Page break between games for cleaner print, except after the last
+            if idx_game < len(games) - 1:
+                elements.append(PageBreak())
+
+        doc.build(elements)
+        buf.seek(0)
+        filename = f"participants_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name=filename)
+
+    @app.route('/admin/export-pdf/<int:game_id>')
+    def admin_export_game_pdf(game_id: int):
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+
+        try:
+            from reportlab.lib.pagesizes import A4
+            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+            from reportlab.lib.units import mm
+            from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+            from reportlab.lib import colors
+        except Exception:
+            flash('PDF generation library not installed. Please install reportlab.', 'danger')
+            return redirect(url_for('admin'))
+
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (game_id,)).fetchone()
+        if not game:
+            flash('Game not found.', 'danger')
+            return redirect(url_for('admin', tab='gamesctl'))
+
+        buf = BytesIO()
+        doc = SimpleDocTemplate(buf, pagesize=A4, leftMargin=14*mm, rightMargin=14*mm, topMargin=16*mm, bottomMargin=16*mm)
+        styles = getSampleStyleSheet()
+        title_style = styles['Title']
+        subtitle_style = ParagraphStyle('SubTitle', parent=styles['Heading2'], spaceAfter=6)
+        table_header_bg = colors.Color(0.92, 0.92, 0.92)
+
+        elements: List[Any] = []
+        elements.append(Paragraph('Participants List (Single Game)', title_style))
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph(f"Game: {game['name']} ({game['type'].upper()})", subtitle_style))
+        elements.append(Spacer(1, 8))
+
+        if game['type'] == 'single':
+            rows = [["#", "Name", "Phone", "Class/Section"]]
+            participants = g.db.execute(
+                'SELECT u.name, u.phone, u.class_section FROM users u WHERE u.game_id = ? AND (u.team_id IS NULL) ORDER BY u.name',
+                (game_id,),
+            ).fetchall()
+            for idx, p in enumerate(participants, start=1):
+                rows.append([str(idx), p['name'], p['phone'], p['class_section'] or '-'])
+            if len(rows) == 1:
+                rows.append(['-', 'No participants', '', ''])
+            table = Table(rows, repeatRows=1, colWidths=[12*mm, None, 32*mm, 32*mm])
+            table.setStyle(TableStyle([
+                ('BACKGROUND', (0,0), (-1,0), table_header_bg),
+                ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ]))
+            elements.append(table)
+        else:
+            teams = g.db.execute(
+                'SELECT t.id, t.name, t.team_code, u.name AS leader_name, u.phone AS leader_phone, u.class_section AS leader_class_section '
+                'FROM teams t JOIN users u ON u.id = t.leader_user_id WHERE t.game_id = ? ORDER BY t.name',
+                (game_id,),
+            ).fetchall()
+            if not teams:
+                elements.append(Paragraph('No teams.', styles['Normal']))
+            else:
+                for t_idx, t in enumerate(teams, start=1):
+                    header = f"{t_idx}. Team: {t['name']}  (Code: {t['team_code']})"
+                    elements.append(Paragraph(header, styles['Heading3']))
+                    leader_rows = [["Leader", t['leader_name'], t['leader_phone'], t['leader_class_section'] or '-']]
+                    leader_table = Table(leader_rows, colWidths=[20*mm, None, 32*mm, 32*mm])
+                    leader_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (0,0), table_header_bg),
+                        ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                        ('FONTNAME', (0,0), (0,0), 'Helvetica-Bold'),
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ]))
+                    elements.append(leader_table)
+
+                    member_header = [["#", "Member Name", "Phone", "Class/Section"]]
+                    members = g.db.execute(
+                        'SELECT u.name, u.phone, u.class_section FROM team_members tm JOIN users u ON u.id = tm.user_id WHERE tm.team_id = ? ORDER BY u.name',
+                        (t['id'],),
+                    ).fetchall()
+                    member_rows = list(member_header)
+                    for midx, m in enumerate(members, start=1):
+                        member_rows.append([str(midx), m['name'], m['phone'], m['class_section'] or '-'])
+                    if len(member_rows) == 1:
+                        member_rows.append(['-', 'No members yet', '', ''])
+                    member_table = Table(member_rows, repeatRows=1, colWidths=[12*mm, None, 32*mm, 32*mm])
+                    member_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0,0), (-1,0), table_header_bg),
+                        ('GRID', (0,0), (-1,-1), 0.25, colors.grey),
+                        ('ALIGN', (0,0), (0,-1), 'CENTER'),
+                        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+                        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+                    ]))
+                    elements.append(member_table)
+                    elements.append(Spacer(1, 8))
+
+        doc.build(elements)
+        buf.seek(0)
+        safe_name = str(game['name']).replace(' ', '_')
+        filename = f"{safe_name}_participants_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+        return send_file(buf, mimetype='application/pdf', as_attachment=True, download_name=filename)
+
+
     # Public signup with whitelist enforcement
     @app.route('/signup', methods=['GET', 'POST'])
     def signup():
@@ -1003,6 +1534,212 @@ def register_routes(app: Flask) -> None:
             return redirect(url_for('login'))
 
         return render_template('signup.html')
+        
+    # Certificate routes
+    @app.route('/certificate')
+    def certificate():
+        user = fetch_current_user()
+        if not user:
+            flash('Please login to access your certificate.', 'warning')
+            return redirect(url_for('login'))
+            
+        # Check if certificates are enabled
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
+        
+        # Get user's game information
+        user_game = None
+        if user['game_id']:
+            user_game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
+            
+        # Check if user has already downloaded their certificate
+        download_record = g.db.execute('SELECT * FROM certificate_downloads WHERE user_id = ?', (user['id'],)).fetchone()
+        already_downloaded = download_record is not None
+        download_date = download_record['download_date'] if already_downloaded else None
+        
+        return render_template(
+            'certificate.html',
+            certificates_enabled=certificates_enabled,
+            user_game=user_game,
+            already_downloaded=already_downloaded,
+            download_date=download_date
+        )
+        
+    @app.route('/certificate/download')
+    def download_certificate():
+        user = fetch_current_user()
+        if not user:
+            flash('Please login to download your certificate.', 'warning')
+            return redirect(url_for('login'))
+            
+        # Check if certificates are enabled
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
+        
+        if not certificates_enabled:
+            flash('Certificates are not yet available. Please check back later.', 'info')
+            return redirect(url_for('certificate'))
+            
+        # Get user's game information
+        if not user['game_id']:
+            flash('You are not registered for any event. Please contact the administrator.', 'warning')
+            return redirect(url_for('certificate'))
+            
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
+        
+        # Import the certificate generator
+        from certificate_generator import generate_certificate
+        
+        # Get event date from settings
+        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
+        
+        # Generate certificate
+        certificate_buffer = generate_certificate(
+            student_name=user['name'],
+            class_section=user['class_section'] or 'Student',
+            event_name=game['name'],
+            date=event_date
+        )
+        
+        # Record the download
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        download_record = g.db.execute('SELECT 1 FROM certificate_downloads WHERE user_id = ?', (user['id'],)).fetchone()
+        
+        if not download_record:
+            g.db.execute(
+                'INSERT INTO certificate_downloads (user_id, download_date) VALUES (?, ?)',
+                (user['id'], now)
+            )
+            g.db.commit()
+        
+        # Send the certificate
+        return send_file(
+            certificate_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=f"certificate_{user['name'].replace(' ', '_')}.pdf"
+        )
+        
+    @app.route('/admin/certificates', methods=['GET'])
+    def admin_certificates():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+            
+        # Get certificate settings
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        
+        # Get download records
+        downloads = g.db.execute('''
+            SELECT cd.download_date, u.name, u.phone, u.class_section, g.name as game_name
+            FROM certificate_downloads cd
+            JOIN users u ON u.id = cd.user_id
+            LEFT JOIN games g ON g.id = u.game_id
+            ORDER BY cd.download_date DESC
+        ''').fetchall()
+        
+        return render_template(
+            'admin_certificates.html',
+            settings=settings,
+            downloads=downloads
+        )
+        
+    @app.route('/admin/certificates/settings', methods=['POST'])
+    def admin_update_certificate_settings():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+            
+        event_date = request.form.get('event_date', '')
+        certificates_enabled = 1 if request.form.get('certificates_enabled') else 0
+        
+        # Check if settings already exist
+        settings = g.db.execute('SELECT 1 FROM certificate_settings LIMIT 1').fetchone()
+        
+        if settings:
+            g.db.execute(
+                'UPDATE certificate_settings SET certificates_enabled = ?, event_date = ?',
+                (certificates_enabled, event_date)
+            )
+        else:
+            g.db.execute(
+                'INSERT INTO certificate_settings (certificates_enabled, event_date) VALUES (?, ?)',
+                (certificates_enabled, event_date)
+            )
+            
+        g.db.commit()
+        flash('Certificate settings updated successfully.', 'success')
+        return redirect(url_for('admin', tab='certificates'))
+        
+    @app.route('/admin/certificates/bulk-generate')
+    def admin_bulk_generate_certificates():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+            
+        # Get certificate settings
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
+        
+        # Import the certificate generator
+        from certificate_generator import generate_certificate
+        import os
+        import zipfile
+        import tempfile
+        
+        # Create a temporary directory to store certificates
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Get all participants
+            participants = g.db.execute('''
+                SELECT u.id, u.name, u.class_section, g.name as game_name
+                FROM users u
+                LEFT JOIN games g ON g.id = u.game_id
+                WHERE u.game_id IS NOT NULL AND u.is_admin = 0
+                ORDER BY u.name
+            ''').fetchall()
+            
+            if not participants:
+                flash('No participants found to generate certificates for.', 'warning')
+                return redirect(url_for('admin', tab='certificates'))
+                
+            # Generate certificates for each participant
+            certificate_files = []
+            for p in participants:
+                if not p['game_name']:
+                    continue
+                    
+                file_name = f"certificate_{p['id']}_{p['name'].replace(' ', '_')}.pdf"
+                file_path = os.path.join(temp_dir, file_name)
+                
+                certificate_buffer = generate_certificate(
+                    student_name=p['name'],
+                    class_section=p['class_section'] or 'Student',
+                    event_name=p['game_name'],
+                    date=event_date,
+                    output_path=file_path
+                )
+                
+                certificate_files.append(file_path)
+                
+            # Create a zip file containing all certificates
+            zip_buffer = BytesIO()
+            with zipfile.ZipFile(zip_buffer, 'w') as zip_file:
+                for file_path in certificate_files:
+                    file_name = os.path.basename(file_path)
+                    zip_file.write(file_path, file_name)
+                    
+            zip_buffer.seek(0)
+            
+            # Send the zip file
+            return send_file(
+                zip_buffer,
+                mimetype='application/zip',
+                as_attachment=True,
+                download_name=f"all_certificates_{datetime.now().strftime('%Y%m%d')}.zip"
+            )
 
 
 app = create_app()

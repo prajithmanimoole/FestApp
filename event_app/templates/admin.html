@@ -19,6 +19,9 @@
   <li class="nav-item" role="presentation">
     <button class="nav-link {% if active_tab == 'whitelist' %}active{% endif %}" id="whitelist-tab" data-bs-toggle="tab" data-bs-target="#whitelist" type="button" role="tab" aria-controls="whitelist" aria-selected="{% if active_tab == 'whitelist' %}true{% else %}false{% endif %}">Whitelist</button>
   </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link {% if active_tab == 'certificates' %}active{% endif %}" id="certificates-tab" data-bs-toggle="tab" data-bs-target="#certificates" type="button" role="tab" aria-controls="certificates" aria-selected="{% if active_tab == 'certificates' %}true{% else %}false{% endif %}">Certificates</button>
+  </li>
 </ul>
 <div class="tab-content" id="adminTabsContent">
   <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}" id="overview" role="tabpanel" aria-labelledby="overview-tab">
@@ -178,8 +181,11 @@
   <div class="tab-pane fade {% if active_tab == 'gamesctl' %}show active{% endif %}" id="gamesctl" role="tabpanel" aria-labelledby="gamesctl-tab">
     <div class="d-flex justify-content-between align-items-center mb-3 clear-box p-3">
       <h5 class="mb-0">Control by Game</h5>
-      <div class="ms-auto" style="max-width:260px;">
-        <input class="form-control" id="gameFilter" placeholder="Filter games by name" />
+      <div class="d-flex align-items-center ms-auto" style="gap:.5rem;">
+        <a href="{{ url_for('admin_participants_list') }}" class="btn btn-sm btn-outline-primary" target="_blank">Open Participants List</a>
+        <div style="max-width:260px;">
+          <input class="form-control" id="gameFilter" placeholder="Filter games by name" />
+        </div>
       </div>
     </div>
 
@@ -208,6 +214,9 @@
 
             <div id="{{ cid }}" class="collapse mt-3">
               {% if g.type == 'single' %}
+                <div class="d-flex justify-content-end mb-2">
+                  <a href="{{ url_for('admin_export_game_pdf', game_id=g.id) }}" class="btn btn-sm btn-outline-dark">Download PDF for {{ g.name }}</a>
+                </div>
                 <div class="table-responsive">
                   <table class="table table-sm align-middle mb-0">
                     <thead><tr><th>Name</th><th>Phone</th><th class="text-end"></th></tr></thead>
@@ -230,6 +239,9 @@
                   </table>
                 </div>
               {% else %}
+                <div class="d-flex justify-content-end mb-2">
+                  <a href="{{ url_for('admin_export_game_pdf', game_id=g.id) }}" class="btn btn-sm btn-outline-dark">Download PDF for {{ g.name }}</a>
+                </div>
                 {% set teams_in_game = game_to_teams.get(g.id, []) %}
                 {% if teams_in_game|length == 0 %}
                   <div class="text-muted">No teams yet.</div>
@@ -469,6 +481,72 @@
             </div>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Certificates Tab -->
+  <div class="tab-pane fade {% if active_tab == 'certificates' %}show active{% endif %}" id="certificates" role="tabpanel" aria-labelledby="certificates-tab">
+    <div class="card mb-4">
+      <div class="card-body">
+        <h5 class="card-title">Certificate Settings</h5>
+        
+        <form method="post" action="{{ url_for('admin_update_certificate_settings') }}">
+          <div class="form-group mb-3">
+            <label for="eventDate">Event Date (to be displayed on certificates):</label>
+            <input type="date" class="form-control" id="eventDate" name="event_date" 
+                  value="{{ cert_settings.event_date if cert_settings and cert_settings.event_date else '' }}">
+          </div>
+          
+          <div class="form-check mb-3">
+            <input type="checkbox" class="form-check-input" id="enableCertificates" name="certificates_enabled" 
+                  {% if cert_settings and cert_settings.certificates_enabled %}checked{% endif %}>
+            <label class="form-check-label" for="enableCertificates">Enable Certificates for Download</label>
+          </div>
+          
+          <button type="submit" class="btn btn-primary">Save Settings</button>
+        </form>
+      </div>
+    </div>
+    
+    <div class="card">
+      <div class="card-body">
+        <h5 class="card-title">Certificate Downloads</h5>
+        
+        <div class="table-responsive">
+          <table class="table table-striped">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Class/Section</th>
+                <th>Event</th>
+                <th>Download Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% if certificate_downloads %}
+                {% for d in certificate_downloads %}
+                  <tr>
+                    <td>{{ d.name }}</td>
+                    <td>{{ d.phone }}</td>
+                    <td>{{ d.class_section }}</td>
+                    <td>{{ d.game_name if d.game_name else 'N/A' }}</td>
+                    <td>{{ d.download_date }}</td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="5" class="text-center">No certificates have been downloaded yet.</td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        
+        <a href="{{ url_for('admin_bulk_generate_certificates') }}" class="btn btn-secondary mt-3">
+          <i class="fas fa-file-archive"></i> Bulk Generate All Certificates
+        </a>
       </div>
     </div>
   </div>

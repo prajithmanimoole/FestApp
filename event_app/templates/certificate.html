@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}Certificate{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Your Certificate</h1>
+    
+    {% if certificates_enabled %}
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <h5 class="card-title">Download Your Certificate</h5>
+                <p class="card-text">
+                    Congratulations on your participation in the event! 
+                    You can now download your personalized certificate.
+                </p>
+                
+                {% if user_game %}
+                    <div class="mb-3">
+                        <strong>Event:</strong> {{ user_game.name }}
+                    </div>
+                    
+                    {% if already_downloaded %}
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> You have already downloaded your certificate on {{ download_date }}.
+                        </div>
+                    {% endif %}
+                    
+                    <a href="{{ url_for('download_certificate') }}" class="btn btn-primary">
+                        <i class="fas fa-download"></i> Download Certificate
+                    </a>
+                {% else %}
+                    <div class="alert alert-warning">
+                        <i class="fas fa-exclamation-triangle"></i> You are not registered for any event. Please contact the administrator.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    {% else %}
+        <div class="alert alert-info">
+            <i class="fas fa-info-circle"></i> Certificates are not yet available. Please check back later after the event is completed.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

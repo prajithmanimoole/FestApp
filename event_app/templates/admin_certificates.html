@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Certificates{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1 class="text-center mb-4">Certificate Management</h1>
+    
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="card-title">Certificate Settings</h5>
+            
+            <form method="post" action="{{ url_for('admin_update_certificate_settings') }}">
+                <div class="form-group mb-3">
+                    <label for="eventDate">Event Date (to be displayed on certificates):</label>
+                    <input type="date" class="form-control" id="eventDate" name="event_date" 
+                           value="{{ settings.event_date if settings and settings.event_date else '' }}">
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="enableCertificates" name="certificates_enabled" 
+                           {% if settings and settings.certificates_enabled %}checked{% endif %}>
+                    <label class="form-check-label" for="enableCertificates">Enable Certificates for Download</label>
+                </div>
+                
+                <button type="submit" class="btn btn-primary">Save Settings</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <h5 class="card-title">Certificate Downloads</h5>
+            
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Class/Section</th>
+                            <th>Event</th>
+                            <th>Download Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if downloads %}
+                            {% for d in downloads %}
+                                <tr>
+                                    <td>{{ d.name }}</td>
+                                    <td>{{ d.phone }}</td>
+                                    <td>{{ d.class_section }}</td>
+                                    <td>{{ d.game_name if d.game_name else 'N/A' }}</td>
+                                    <td>{{ d.download_date }}</td>
+                                </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center">No certificates have been downloaded yet.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <a href="{{ url_for('admin_bulk_generate_certificates') }}" class="btn btn-secondary mt-3">
+                <i class="fas fa-file-archive"></i> Bulk Generate All Certificates
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
