@@ -6,6 +6,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph
+from PIL import Image, ImageDraw, ImageFont
 import os
 import io
 
@@ -80,7 +81,7 @@ def create_certificate_template():
 
 def generate_certificate(student_name, class_section, event_name, date, output_path=None):
     """
-    Generate a personalized certificate for a student
+    Generate a personalized certificate for a student using the template image
     
     Args:
         student_name: Name of the student
@@ -99,55 +100,29 @@ def generate_certificate(student_name, class_section, event_name, date, output_p
     # Create a canvas
     c = canvas.Canvas(buffer, pagesize=landscape(A4))
     
-    # Set background color
-    c.setFillColor(white)
-    c.rect(0, 0, width, height, fill=True)
+    # Get the template image path
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    template_path = os.path.join(current_dir, 'static', 'certificates', 'certificate_template.jpg')
     
-    # Draw border
-    c.setStrokeColor(black)
-    c.setLineWidth(3)
-    c.rect(20, 20, width-40, height-40, fill=0)
+    # Draw the template image as background
+    c.drawImage(template_path, 0, 0, width=width, height=height, preserveAspectRatio=True)
     
-    # Title
-    c.setFont("Helvetica-Bold", 30)
-    c.drawCentredString(width/2, height-70, "CERTIFICATE OF PARTICIPATION")
+    # Student name (centered in the dotted line area)
+    c.setFillColor(black)
+    c.setFont("Helvetica-Bold", 20)
+    name_y_position = height/2 - 10  # Position for the name
+    c.drawCentredString(width/2, name_y_position, student_name)
     
-    # Logo placeholder - replace with actual logo path when available
-    # c.drawImage("path_to_logo.png", width/2-50, height-120, width=100, height=50)
-    c.setFont("Helvetica", 12)
-    c.drawCentredString(width/2, height-100, "FEST APP")
-    
-    # Body text
-    c.setFont("Helvetica", 12)
-    c.drawCentredString(width/2, height-150, "This is to certify that")
-    
-    # Student name
-    c.setFont("Helvetica-Bold", 24)
-    c.drawCentredString(width/2, height/2+50, student_name)
-    
-    # Class and section
+    # Event name (replace the placeholder in the certificate)
     c.setFont("Helvetica", 16)
-    c.drawCentredString(width/2, height/2+10, class_section)
+    event_y_position = height/2 - 80  # Position for the event name
+    c.drawCentredString(width/2, event_y_position, event_name)
     
-    # Event details
-    c.setFont("Helvetica", 12)
-    c.drawCentredString(width/2, height/2-30, "has successfully participated in")
-    
-    # Event name
-    c.setFont("Helvetica-Bold", 18)
-    c.drawCentredString(width/2, height/2-70, event_name)
-    
-    # Date
-    c.setFont("Helvetica", 12)
-    c.drawCentredString(width/2, height/2-100, date)
-    
-    # Signature placeholders
-    c.setFont("Helvetica", 10)
-    c.drawCentredString(width/3, 80, "____________________")
-    c.drawCentredString(width/3, 60, "Organizer Signature")
-    
-    c.drawCentredString(2*width/3, 80, "____________________")
-    c.drawCentredString(2*width/3, 60, "Principal Signature")
+    # Date (add below event name)
+    current_date = date
+    c.setFont("Helvetica", 14)
+    date_y_position = height/2 - 120  # Position for the date
+    c.drawCentredString(width/2, date_y_position, f"held during {current_date}")
     
     c.save()
     buffer.seek(0)
