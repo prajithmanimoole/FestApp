@@ -3,6 +3,8 @@ import sqlite3
 import random
 import string
 import sys
+import zipfile
+import tempfile
 from contextlib import closing
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Union
@@ -11,6 +13,13 @@ from urllib.parse import urlparse
 from flask import Flask, g, render_template, request, redirect, url_for, session, flash, send_file
 import secrets
 from io import BytesIO
+
+# Local import for certificate generation
+try:
+    from .certificate_generator import generate_certificate
+except ImportError:
+    # Allow direct execution
+    from certificate_generator import generate_certificate
 
 # Check if running on Railway (DATABASE_URL environment variable will be set)
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -97,7 +106,7 @@ def create_app() -> Flask:
     register_routes(app)
     return app
 
-reportlab
+
 def ensure_schema_and_seed() -> None:
     os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     with closing(get_db()) as db:
@@ -1587,9 +1596,6 @@ def register_routes(app: Flask) -> None:
             
         game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
         
-        # Import the certificate generator
-        from certificate_generator import generate_certificate
-        
         # Get event date from settings
         event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
         
@@ -1683,12 +1689,6 @@ def register_routes(app: Flask) -> None:
         # Get certificate settings
         settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
         event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
-        
-        # Import the certificate generator
-        from certificate_generator import generate_certificate
-        import os
-        import zipfile
-        import tempfile
         
         # Create a temporary directory to store certificates
         with tempfile.TemporaryDirectory() as temp_dir:
