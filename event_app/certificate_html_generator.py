@@ -30,15 +30,34 @@ except ImportError:
 
 def generate_html_certificate(student_name, event_name, event_date, class_section=None, certificate_type='event'):
     """
-    Generate HTML certificate content
+    Generate HTML certificate content using the provided template
     """
-    # Determine certificate title and content based on type
+    # Determine certificate content based on type
     if certificate_type == 'seminar':
-        participation_text = "Web Development with AI Seminar Session"
-        subtitle = "SEMINAR PARTICIPATION"
+        participation_event = "Web Development with AI Seminar Session"
+        event_display_name = "'WEB DEVELOPMENT WITH AI SEMINAR'"
     else:
-        participation_text = f"event {event_name}"
-        subtitle = "EVENT PARTICIPATION"
+        participation_event = f"event {event_name}"
+        event_display_name = f"'{event_name.upper()}'"
+    
+    # For the logo, we'll use a base64 encoded version or a relative path
+    # Since we're generating this from Python, we'll use a data URL approach
+    import os
+    import base64
+    
+    # Try to load the logo and convert to base64
+    logo_path = os.path.join(os.path.dirname(__file__), 'static', 'VC_logo.png')
+    logo_data_url = ""
+    
+    try:
+        if os.path.exists(logo_path):
+            with open(logo_path, 'rb') as logo_file:
+                logo_data = base64.b64encode(logo_file.read()).decode('utf-8')
+                logo_data_url = f"data:image/png;base64,{logo_data}"
+    except Exception as e:
+        print(f"Could not load logo: {e}")
+        # Fallback to a placeholder or no logo
+        logo_data_url = ""
     
     html_content = f"""
     <!DOCTYPE html>
@@ -54,226 +73,203 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                 size: A4 landscape;
                 margin: 0;
             }}
-            
+
             body {{
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                min-height: 100vh;
                 margin: 0;
-                padding: 0;
+                background-color: #f0f2f5;
                 font-family: 'Montserrat', sans-serif;
-                background-color: #ffffff;
                 width: 297mm;
                 height: 210mm;
-                display: flex;
-                justify-content: center;
-                align-items: center;
             }}
-            
+
             .certificate-container {{
-                width: 280mm;
-                height: 190mm;
-                background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+                width: 800px;
+                height: 565px;
+                background: linear-gradient(to bottom right, #ffffff, #f0f2f5);
                 position: relative;
-                border: 4px solid #2563eb;
-                border-radius: 15px;
-                box-shadow: 0 8px 32px rgba(37, 99, 235, 0.15);
                 overflow: hidden;
+                box-shadow: 0 10px 30px rgba(0,0,0,0.1);
             }}
-            
+
             .certificate {{
-                padding: 25mm;
+                padding: 40px;
                 text-align: center;
-                color: #1e293b;
+                color: #333;
                 position: relative;
-                z-index: 10;
-                height: 100%;
-                box-sizing: border-box;
-                display: flex;
-                flex-direction: column;
-                justify-content: space-between;
+                z-index: 2;
             }}
-            
+
             .header {{
-                margin-bottom: 15mm;
-            }}
-            
-            .header h1 {{
-                font-size: 18px;
-                font-weight: 700;
-                color: #2563eb;
-                margin: 2px 0;
-                line-height: 1.3;
-            }}
-            
-            .header .address {{
-                font-size: 12px;
-                color: #64748b;
-                margin: 8px 0;
-                font-weight: 500;
-            }}
-            
-            .header .department {{
-                font-size: 14px;
-                color: #2563eb;
-                font-weight: 600;
-                margin: 8px 0;
-            }}
-            
-            .main-content {{
-                flex-grow: 1;
                 display: flex;
-                flex-direction: column;
-                justify-content: center;
                 align-items: center;
-                margin: 10mm 0;
+                justify-content: center;
+                padding-bottom: 20px;
             }}
-            
-            .certificate-title {{
+
+            .college-logo {{
+                width: 80px;
+                margin-right: 20px;
+            }}
+
+            .header-text {{
+                text-align: left;
+            }}
+
+            .header h1 {{
+                color: #1e3a8a;
+                font-size: 18px;
+                font-weight: 600;
+                margin: 0;
+            }}
+
+            .header p {{
+                font-size: 12px;
+                margin: 5px 0 20px;
+            }}
+
+            .header h2 {{
+                font-size: 14px;
+                font-weight: 500;
+                margin: 0;
+            }}
+
+            .header h3 {{
+                font-size: 16px;
+                font-weight: 600;
+                margin: 5px 0 30px;
+            }}
+
+            .main-content h4 {{
+                font-family: 'Merriweather', serif;
                 font-size: 48px;
                 font-weight: 700;
-                color: #1e40af;
-                margin: 10px 0;
-                font-family: 'Merriweather', serif;
-                text-shadow: 2px 2px 4px rgba(30, 64, 175, 0.1);
+                margin: 0;
+                color: #000;
             }}
-            
-            .subtitle {{
-                font-size: 16px;
-                color: #2563eb;
-                font-weight: 600;
-                margin: 5px 0 20px 0;
-                letter-spacing: 3px;
-                text-transform: uppercase;
-            }}
-            
-            .proudly-presented {{
+
+            .main-content h5 {{
                 font-size: 14px;
-                color: #475569;
-                margin: 15px 0 10px 0;
                 font-weight: 500;
+                color: #bfa100;
+                margin: 0 0 20px;
+                position: relative;
+            }}
+
+            .main-content h5::before, .main-content h5::after {{
+                content: '';
+                position: absolute;
+                width: 50px;
+                height: 1px;
+                background-color: #bfa100;
+                top: 50%;
+            }}
+
+            .main-content h5::before {{
+                left: 35%;
+            }}
+
+            .main-content h5::after {{
+                right: 35%;
+            }}
+
+            .main-content h6 {{
+                font-size: 12px;
+                font-weight: 500;
+                margin: 20px 0 5px;
                 letter-spacing: 1px;
             }}
-            
+
             .participant-name {{
-                font-size: 36px;
+                margin: 10px auto;
+                font-size: 24px;
+                color: #1e3a8a;
+                letter-spacing: 2px;
                 font-weight: 700;
-                color: #1e40af;
-                margin: 15px 0;
                 font-family: 'Merriweather', serif;
-                border-bottom: 3px solid #2563eb;
-                padding: 5px 20px;
+                border-bottom: 2px dotted #333;
+                padding-bottom: 5px;
                 display: inline-block;
                 min-width: 400px;
-                letter-spacing: 2px;
             }}
-            
+
             .participation-text {{
-                font-size: 16px;
-                color: #475569;
-                margin: 12px 0;
-                line-height: 1.6;
-                max-width: 600px;
+                font-size: 14px;
+                margin: 10px 0;
             }}
-            
-            .event-date {{
-                font-size: 16px;
-                color: #1e40af;
-                margin: 12px 0;
+
+            .event-name {{
+                font-size: 18px;
                 font-weight: 600;
+                color: #1e3a8a;
+                margin: 20px 0;
             }}
-            
-            .class-section {{
+
+            .organised-by {{
                 font-size: 14px;
-                color: #64748b;
-                margin: 8px 0;
-                font-style: italic;
+                margin-bottom: 30px;
             }}
-            
-            .organized-by {{
-                font-size: 14px;
-                color: #475569;
-                margin: 20px 0 10px 0;
-                font-style: italic;
-                font-weight: 500;
-            }}
-            
+
             .footer {{
                 display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-top: auto;
-                padding: 0 40px;
+                justify-content: space-around;
+                margin-top: 40px;
             }}
-            
-            .signature {{
-                text-align: center;
-                flex: 1;
-            }}
-            
-            .signature-line {{
-                width: 150px;
-                height: 2px;
-                background-color: #334155;
-                margin: 0 auto 8px;
-            }}
-            
+
             .signature p {{
                 margin: 0;
-                font-size: 11px;
-                font-weight: 600;
-                color: #334155;
-                letter-spacing: 0.5px;
+                font-size: 12px;
+                font-weight: 500;
             }}
-            
-            /* Decorative elements */
+
+            /* Decorative Shapes */
             .shape {{
                 position: absolute;
                 border-radius: 50%;
                 z-index: 1;
-                opacity: 0.08;
             }}
-            
+
             .shape-1 {{
                 width: 200px;
                 height: 200px;
-                background: linear-gradient(135deg, #fbbf24, #f59e0b);
-                top: -80px;
+                background-color: #facc15;
+                top: -50px;
                 left: -80px;
             }}
-            
+
             .shape-2 {{
-                width: 120px;
-                height: 120px;
-                background: linear-gradient(135deg, #3b82f6, #2563eb);
-                bottom: -40px;
-                right: -40px;
+                width: 100px;
+                height: 100px;
+                background-color: #60a5fa;
+                bottom: 20px;
+                right: -30px;
             }}
-            
+
             .shape-3 {{
-                width: 160px;
-                height: 160px;
-                background: linear-gradient(135deg, #10b981, #059669);
-                bottom: -60px;
+                width: 150px;
+                height: 150px;
+                background: linear-gradient(to top right, #4ade80, #34d399);
+                bottom: -75px;
                 left: 100px;
             }}
-            
+
             .shape-4 {{
+                width: 60px;
+                height: 60px;
+                background-color: #facc15;
+                bottom: 10px;
+                left: 220px;
+            }}
+
+            .shape-5 {{
                 width: 80px;
                 height: 80px;
-                background: linear-gradient(135deg, #8b5cf6, #7c3aed);
-                top: 40px;
-                right: 60px;
-            }}
-            
-            /* Border decoration */
-            .certificate-container::before {{
-                content: '';
-                position: absolute;
-                top: 15px;
-                left: 15px;
-                right: 15px;
-                bottom: 15px;
-                border: 2px solid #e2e8f0;
-                border-radius: 10px;
-                z-index: 2;
+                background-color: #3b82f6;
+                bottom: -40px;
+                left: -20px;
             }}
         </style>
     </head>
@@ -281,48 +277,41 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
         <div class="certificate-container">
             <div class="certificate">
                 <div class="header">
-                    <h1>VIVEKANANDA COLLEGE OF ARTS,</h1>
-                    <h1>SCIENCE & COMMERCE (AUTONOMOUS)</h1>
-                    <p class="address">NEHRU NAGAR, PUTTUR D.K., 574203</p>
-                    <p class="department">DEPARTMENT OF COMPUTER SCIENCE</p>
-                    <p class="department">INFORMATION TECHNOLOGY CLUB</p>
+                    {f'<img src="{logo_data_url}" alt="College Logo" class="college-logo">' if logo_data_url else ''}
+                    <div class="header-text">
+                        <h1>VIVEKANANDA COLLEGE OF ARTS, SCIENCE & COMMERCE (AUTONOMOUS)</h1>
+                        <p>NEHRU NAGAR, PUTTUR D.K., 574203</p>
+                        <h2>DEPARTMENT OF COMPUTER SCIENCE</h2>
+                        <h3>INFORMATION TECHNOLOGY CLUB</h3>
+                    </div>
                 </div>
-                
                 <div class="main-content">
-                    <h2 class="certificate-title">Certificate</h2>
-                    <h3 class="subtitle">OF {subtitle}</h3>
-                    
-                    <p class="proudly-presented">PROUDLY PRESENTED TO</p>
-                    
+                    <h4>Certificate</h4>
+                    <h5>OF PARTICIPATION</h5>
+                    <h6>PROUDLY PRESENTED TO</h6>
                     <div class="participant-name">{student_name.upper()}</div>
-                    
-                    <p class="participation-text">
-                        for actively participating in the {participation_text}
-                    </p>
-                    
-                    <p class="event-date">held during {event_date}</p>
-                    
-                    {f'<p class="class-section">Class: {class_section}</p>' if class_section else ''}
-                    
-                    <p class="organized-by">Organised by - III BCA 'D' -</p>
+                    <p class="participation-text">for actively participating in the {participation_event} held during</p>
+                    <p class="event-name">{event_display_name}</p>
+                    <p class="participation-text">on {event_date}</p>
+                    {f'<p class="participation-text">Class: {class_section}</p>' if class_section else ''}
+                    <p class="organised-by">Organised by - III BCA 'D' -</p>
                 </div>
-                
                 <div class="footer">
                     <div class="signature">
-                        <div class="signature-line"></div>
+                        <p>_________________________</p>
                         <p>HEAD OF DEPARTMENT</p>
                     </div>
                     <div class="signature">
-                        <div class="signature-line"></div>
+                        <p>_________________________</p>
                         <p>IT CLUB CONVENER</p>
                     </div>
                 </div>
             </div>
-            
             <div class="shape shape-1"></div>
             <div class="shape shape-2"></div>
             <div class="shape shape-3"></div>
             <div class="shape shape-4"></div>
+            <div class="shape shape-5"></div>
         </div>
     </body>
     </html>
@@ -357,13 +346,13 @@ def generate_certificate_pdf_weasyprint(student_name, event_name, event_date, cl
 
 def generate_certificate_pdf_reportlab(student_name, event_name, event_date, class_section=None, certificate_type='event'):
     """
-    Fallback PDF generation using reportlab
+    Fallback PDF generation using reportlab matching the template design
     """
     try:
         from .certificate_generator import generate_simple_certificate_pdf
         return generate_simple_certificate_pdf(student_name, event_name, event_date, class_section, certificate_type)
     except ImportError:
-        # If the certificate_generator is not available, create a simple certificate
+        # Create a certificate matching the template design
         width, height = landscape(A4)
         buffer = BytesIO()
         
@@ -373,102 +362,132 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         c.setFillColor(white)
         c.rect(0, 0, width, height, fill=True)
         
-        # Draw outer border
-        c.setStrokeColor(HexColor('#2563eb'))
-        c.setLineWidth(4)
-        c.rect(20, 20, width-40, height-40, fill=0)
+        # Add decorative shapes (simplified circles)
+        # Shape 1 - Yellow circle top-left
+        c.setFillColor(HexColor('#facc15'))
+        c.circle(-30, height-100, 100)
         
-        # Draw inner border
-        c.setStrokeColor(HexColor('#e2e8f0'))
-        c.setLineWidth(2)
-        c.rect(35, 35, width-70, height-70, fill=0)
+        # Shape 2 - Blue circle bottom-right
+        c.setFillColor(HexColor('#60a5fa'))
+        c.circle(width-50, 70, 50)
         
-        # College header
-        c.setFillColor(HexColor('#2563eb'))
+        # Shape 3 - Green circle bottom-left
+        c.setFillColor(HexColor('#4ade80'))
+        c.circle(200, 50, 75)
+        
+        # Header section with logo space
+        header_y = height - 80
+        
+        # College name and details
+        c.setFillColor(HexColor('#1e3a8a'))
         c.setFont("Helvetica-Bold", 18)
-        c.drawCentredString(width/2, height-60, "VIVEKANANDA COLLEGE OF ARTS,")
-        c.drawCentredString(width/2, height-80, "SCIENCE & COMMERCE (AUTONOMOUS)")
+        c.drawString(150, header_y, "VIVEKANANDA COLLEGE OF ARTS, SCIENCE & COMMERCE (AUTONOMOUS)")
         
-        c.setFillColor(HexColor('#64748b'))
+        c.setFillColor(black)
         c.setFont("Helvetica", 12)
-        c.drawCentredString(width/2, height-105, "NEHRU NAGAR, PUTTUR D.K., 574203")
+        c.drawString(150, header_y - 25, "NEHRU NAGAR, PUTTUR D.K., 574203")
         
-        c.setFillColor(HexColor('#2563eb'))
-        c.setFont("Helvetica-Bold", 14)
-        c.drawCentredString(width/2, height-130, "DEPARTMENT OF COMPUTER SCIENCE")
-        c.drawCentredString(width/2, height-150, "INFORMATION TECHNOLOGY CLUB")
+        c.setFont("Helvetica", 14)
+        c.drawString(150, header_y - 50, "DEPARTMENT OF COMPUTER SCIENCE")
+        
+        c.setFont("Helvetica-Bold", 16)
+        c.drawString(150, header_y - 75, "INFORMATION TECHNOLOGY CLUB")
         
         # Certificate title
-        c.setFillColor(HexColor('#1e40af'))
+        c.setFillColor(black)
         c.setFont("Helvetica-Bold", 48)
-        c.drawCentredString(width/2, height-210, "Certificate")
+        c.drawCentredString(width/2, height-200, "Certificate")
         
-        # Subtitle
-        c.setFillColor(HexColor('#2563eb'))
-        c.setFont("Helvetica-Bold", 16)
-        subtitle_text = "OF SEMINAR PARTICIPATION" if certificate_type == 'seminar' else "OF EVENT PARTICIPATION"
-        c.drawCentredString(width/2, height-240, subtitle_text)
-        
-        # "Proudly presented to" text
-        c.setFillColor(HexColor('#475569'))
+        # OF PARTICIPATION with decorative lines
+        c.setFillColor(HexColor('#bfa100'))
         c.setFont("Helvetica", 14)
-        c.drawCentredString(width/2, height-280, "PROUDLY PRESENTED TO")
+        participation_text = "OF PARTICIPATION"
+        text_width = c.stringWidth(participation_text, "Helvetica", 14)
         
-        # Student name with underline
-        c.setFillColor(HexColor('#1e40af'))
-        c.setFont("Helvetica-Bold", 32)
-        c.drawCentredString(width/2, height-320, student_name.upper())
+        # Draw the text
+        c.drawCentredString(width/2, height-230, participation_text)
         
-        # Draw line under name
-        name_width = c.stringWidth(student_name.upper(), "Helvetica-Bold", 32)
-        line_start = (width - max(name_width + 40, 400)) / 2
-        line_end = line_start + max(name_width + 40, 400)
-        c.setStrokeColor(HexColor('#2563eb'))
-        c.setLineWidth(3)
-        c.line(line_start, height-330, line_end, height-330)
+        # Draw decorative lines on both sides
+        line_y = height-225
+        line_start_left = (width/2) - (text_width/2) - 70
+        line_end_left = (width/2) - (text_width/2) - 20
+        line_start_right = (width/2) + (text_width/2) + 20
+        line_end_right = (width/2) + (text_width/2) + 70
+        
+        c.setStrokeColor(HexColor('#bfa100'))
+        c.setLineWidth(1)
+        c.line(line_start_left, line_y, line_end_left, line_y)
+        c.line(line_start_right, line_y, line_end_right, line_y)
+        
+        # "PROUDLY PRESENTED TO"
+        c.setFillColor(black)
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(width/2, height-270, "PROUDLY PRESENTED TO")
+        
+        # Student name with dotted underline
+        c.setFillColor(HexColor('#1e3a8a'))
+        c.setFont("Helvetica-Bold", 24)
+        c.drawCentredString(width/2, height-310, student_name.upper())
+        
+        # Draw dotted line under name
+        name_width = c.stringWidth(student_name.upper(), "Helvetica-Bold", 24)
+        line_start = (width - max(name_width + 100, 400)) / 2
+        line_end = line_start + max(name_width + 100, 400)
+        
+        # Create dotted line effect
+        c.setStrokeColor(black)
+        c.setLineWidth(1)
+        dot_spacing = 5
+        current_x = line_start
+        while current_x < line_end:
+            c.line(current_x, height-320, min(current_x + 3, line_end), height-320)
+            current_x += dot_spacing
         
         # Participation text
-        c.setFillColor(HexColor('#475569'))
-        c.setFont("Helvetica", 16)
+        c.setFillColor(black)
+        c.setFont("Helvetica", 14)
+        
         if certificate_type == 'seminar':
-            c.drawCentredString(width/2, height-370, "for actively participating in the")
-            c.drawCentredString(width/2, height-390, "Web Development with AI Seminar Session")
+            participation_event = "Web Development with AI Seminar Session"
+            event_display_name = "'WEB DEVELOPMENT WITH AI SEMINAR'"
         else:
-            c.drawCentredString(width/2, height-370, f"for actively participating in the event")
-            c.setFillColor(HexColor('#2563eb'))
-            c.setFont("Helvetica-Bold", 18)
-            c.drawCentredString(width/2, height-390, event_name)
+            participation_event = f"event {event_name}"
+            event_display_name = f"'{event_name.upper()}'"
+        
+        c.drawCentredString(width/2, height-360, f"for actively participating in the {participation_event} held during")
+        
+        # Event name
+        c.setFillColor(HexColor('#1e3a8a'))
+        c.setFont("Helvetica-Bold", 18)
+        c.drawCentredString(width/2, height-390, event_display_name)
         
         # Event date
-        c.setFillColor(HexColor('#1e40af'))
-        c.setFont("Helvetica-Bold", 16)
-        c.drawCentredString(width/2, height-420, f"held during {event_date}")
+        c.setFillColor(black)
+        c.setFont("Helvetica", 14)
+        c.drawCentredString(width/2, height-420, f"on {event_date}")
         
         # Class section if provided
         if class_section:
-            c.setFillColor(HexColor('#64748b'))
             c.setFont("Helvetica", 12)
             c.drawCentredString(width/2, height-445, f"Class: {class_section}")
         
         # Organized by text
-        c.setFillColor(HexColor('#475569'))
         c.setFont("Helvetica", 14)
         c.drawCentredString(width/2, height-480, "Organised by - III BCA 'D' -")
         
         # Signature sections
-        c.setFillColor(HexColor('#334155'))
-        c.setFont("Helvetica-Bold", 11)
+        c.setFillColor(black)
+        c.setFont("Helvetica", 12)
         
         # Left signature
         left_x = width * 0.25
-        c.setLineWidth(2)
-        c.line(left_x - 75, 90, left_x + 75, 90)
-        c.drawCentredString(left_x, 70, "HEAD OF DEPARTMENT")
+        c.drawCentredString(left_x, 80, "_________________________")
+        c.drawCentredString(left_x, 60, "HEAD OF DEPARTMENT")
         
         # Right signature
         right_x = width * 0.75
-        c.line(right_x - 75, 90, right_x + 75, 90)
-        c.drawCentredString(right_x, 70, "IT CLUB CONVENER")
+        c.drawCentredString(right_x, 80, "_________________________")
+        c.drawCentredString(right_x, 60, "IT CLUB CONVENER")
         
         c.save()
         buffer.seek(0)
