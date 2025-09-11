@@ -12,7 +12,7 @@ RUN apt-get update && apt-get install -y \
     libcairo2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libgdk-pixbuf-2.0-0 \
+    libgdk-pixbuf-xlib-2.0-0 \
     libffi-dev \
     shared-mime-info \
     wget \
@@ -40,5 +40,5 @@ ENV PORT=8080
 # Expose the port the app runs on
 EXPOSE 8080
 
-# Command to run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "wsgi:app"]
+# Command to run the application - using shell form to allow environment variable substitution
+CMD gunicorn --bind 0.0.0.0:$PORT wsgi:app
