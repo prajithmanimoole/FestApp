@@ -35,9 +35,10 @@ COPY . .
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PORT=8080
 
-# Expose the port
+# Expose the port that will be provided by Railway
+# Note: We don't hardcode PORT as an environment variable here
+# to let Railway provide it at runtime
 EXPOSE 8080
 
 # Use Python directly instead of gunicorn
