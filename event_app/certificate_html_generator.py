@@ -97,28 +97,32 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             }}
 
             .certificate {{
-                padding: 40px;
+                padding: 30px;
                 text-align: center;
                 color: #333;
                 position: relative;
                 z-index: 10;
                 background: rgba(255, 255, 255, 0.95);
                 border-radius: 8px;
-                margin: 20px;
-                height: calc(100% - 40px);
+                margin: 15px;
+                height: calc(100% - 30px);
                 box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
             }}
 
             .header {{
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                padding-bottom: 20px;
+                padding-bottom: 15px;
+                flex-shrink: 0;
             }}
 
             .college-logo {{
-                width: 80px;
-                margin-right: 20px;
+                width: 70px;
+                margin-right: 15px;
             }}
 
             .header-text {{
@@ -127,41 +131,48 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
 
             .header h1 {{
                 color: #1e3a8a;
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 600;
                 margin: 0;
             }}
 
             .header p {{
-                font-size: 12px;
-                margin: 5px 0 20px;
+                font-size: 11px;
+                margin: 3px 0 15px;
             }}
 
             .header h2 {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 margin: 0;
             }}
 
             .header h3 {{
-                font-size: 16px;
+                font-size: 14px;
                 font-weight: 600;
-                margin: 5px 0 30px;
+                margin: 3px 0 20px;
+            }}
+
+            .main-content {{
+                flex-grow: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
             }}
 
             .main-content h4 {{
                 font-family: 'Merriweather', serif;
-                font-size: 48px;
+                font-size: 42px;
                 font-weight: 700;
                 margin: 0;
                 color: #000;
             }}
 
             .main-content h5 {{
-                font-size: 14px;
+                font-size: 13px;
                 font-weight: 500;
                 color: #bfa100;
-                margin: 0 0 20px;
+                margin: 0 0 15px;
                 position: relative;
             }}
 
@@ -183,15 +194,15 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             }}
 
             .main-content h6 {{
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 500;
-                margin: 20px 0 5px;
+                margin: 15px 0 5px;
                 letter-spacing: 1px;
             }}
 
             .participant-name {{
-                margin: 10px auto;
-                font-size: 24px;
+                margin: 8px auto;
+                font-size: 22px;
                 color: #1e3a8a;
                 letter-spacing: 2px;
                 font-weight: 700;
@@ -203,27 +214,28 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             }}
 
             .participation-text {{
-                font-size: 14px;
-                margin: 10px 0;
+                font-size: 13px;
+                margin: 8px 0;
             }}
 
             .event-name {{
-                font-size: 18px;
+                font-size: 16px;
                 font-weight: 600;
                 color: #1e3a8a;
-                margin: 20px 0;
+                margin: 15px 0;
             }}
 
             .organised-by {{
-                font-size: 14px;
-                margin-bottom: 30px;
+                font-size: 13px;
+                margin-bottom: 20px;
             }}
 
             .footer {{
                 display: flex;
                 justify-content: space-between;
-                margin-top: 40px;
-                padding: 0 40px;
+                margin-top: 25px;
+                padding: 0 30px;
+                flex-shrink: 0;
             }}
 
             .signature {{
@@ -233,7 +245,7 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
 
             .signature p {{
                 margin: 0;
-                font-size: 12px;
+                font-size: 11px;
                 font-weight: 500;
             }}
 
