@@ -221,8 +221,14 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
 
             .footer {{
                 display: flex;
-                justify-content: space-around;
+                justify-content: space-between;
                 margin-top: 40px;
+                padding: 0 40px;
+            }}
+
+            .signature {{
+                text-align: center;
+                flex: 1;
             }}
 
             .signature p {{
@@ -299,13 +305,16 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                     <div class="participant-name">{student_name.upper()}</div>
                     <p class="participation-text">for actively participating in the {participation_event} held during</p>
                     <p class="event-name">{event_date}</p>
-                    {f'<p class="participation-text">Class: {class_section}</p>' if class_section else ''}
                     <p class="organised-by">Organised by - III BCA 'D' -</p>
                 </div>
                 <div class="footer">
                     <div class="signature">
                         <p>_________________________</p>
                         <p>HEAD OF DEPARTMENT</p>
+                    </div>
+                    <div class="signature">
+                        <p>_________________________</p>
+                        <p>PRINCIPAL</p>
                     </div>
                     <div class="signature">
                         <p>_________________________</p>
@@ -479,26 +488,26 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         c.setFont("Helvetica-Bold", 18)
         c.drawCentredString(width/2, height-390, event_date)
         
-        # Class section if provided
-        if class_section:
-            c.setFont("Helvetica", 12)
-            c.drawCentredString(width/2, height-415, f"Class: {class_section}")
-        
-        # Organized by text
+        # Organized by text (removed class section display)
         c.setFont("Helvetica", 14)
-        c.drawCentredString(width/2, height-450, "Organised by - III BCA 'D' -")
+        c.drawCentredString(width/2, height-420, "Organised by - III BCA 'D' -")
         
-        # Signature sections
+        # Signature sections - Updated to three columns
         c.setFillColor(black)
         c.setFont("Helvetica", 12)
         
-        # Left signature
-        left_x = width * 0.25
+        # Left signature - Head of Department
+        left_x = width * 0.2
         c.drawCentredString(left_x, 80, "_________________________")
         c.drawCentredString(left_x, 60, "HEAD OF DEPARTMENT")
         
-        # Right signature
-        right_x = width * 0.75
+        # Center signature - Principal
+        center_x = width * 0.5
+        c.drawCentredString(center_x, 80, "_________________________")
+        c.drawCentredString(center_x, 60, "PRINCIPAL")
+        
+        # Right signature - IT Club Convener
+        right_x = width * 0.8
         c.drawCentredString(right_x, 80, "_________________________")
         c.drawCentredString(right_x, 60, "IT CLUB CONVENER")
         
