@@ -17,14 +17,7 @@
 - Admin cannot register for games.
 
 ### Test credentials
-- Admin: phone `9990001111`, password `admin123`
+- Admin: phone `9990001111`, password `1234`
 
-### Deploy to Render
-1. Push this folder to a GitHub repo.
-2. Create a new Render Web Service
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `gunicorn app:app`
-3. Set environment variable `SECRET_KEY` to a strong random value.
-4. After deploy, visit the URL. Optionally connect a custom domain.
-
-
+### Notes
+This project is set up for local usage. Remove any cloud deployment configs.

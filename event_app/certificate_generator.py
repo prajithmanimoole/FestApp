@@ -79,6 +79,80 @@ def create_certificate_template():
     buffer.seek(0)
     return buffer
 
+def generate_simple_certificate_pdf(student_name, event_name, event_date, class_section=None, certificate_type='event'):
+    """
+    Generate a simple PDF certificate using ReportLab as fallback
+    
+    Args:
+        student_name: Name of the student
+        event_name: Name of the event
+        event_date: Date of the event
+        class_section: Class and section of the student (optional)
+        certificate_type: Type of certificate ('event' or 'seminar')
+    
+    Returns:
+        BytesIO object containing the PDF certificate
+    """
+    from io import BytesIO
+    
+    width, height = landscape(A4)
+    buffer = BytesIO()
+    
+    # Create a canvas
+    c = canvas.Canvas(buffer, pagesize=landscape(A4))
+    
+    # Set background color
+    c.setFillColor(white)
+    c.rect(0, 0, width, height, fill=True)
+    
+    # Draw border
+    c.setStrokeColor(black)
+    c.setLineWidth(3)
+    c.rect(20, 20, width-40, height-40, fill=0)
+    
+    # Title
+    c.setFont("Helvetica-Bold", 24)
+    c.drawCentredString(width/2, height-70, "CERTIFICATE OF PARTICIPATION")
+    
+    # College info
+    c.setFont("Helvetica-Bold", 14)
+    c.drawCentredString(width/2, height-100, "VIVEKANANDA COLLEGE OF ARTS, SCIENCE & COMMERCE")
+    c.setFont("Helvetica", 12)
+    c.drawCentredString(width/2, height-120, "NEHRU NAGAR, PUTTUR D.K., 574203")
+    c.drawCentredString(width/2, height-140, "DEPARTMENT OF COMPUTER SCIENCE")
+    c.drawCentredString(width/2, height-160, "INFORMATION TECHNOLOGY CLUB")
+    
+    # Body text
+    c.setFont("Helvetica", 14)
+    c.drawCentredString(width/2, height-200, "This is to certify that")
+    
+    # Student name
+    c.setFont("Helvetica-Bold", 18)
+    c.drawCentredString(width/2, height-240, student_name.upper())
+    
+    # Event participation text
+    participation_text = f"has actively participated in the {'Web Development with AI Seminar Session' if certificate_type == 'seminar' else f'event {event_name}'}"
+    c.setFont("Helvetica", 14)
+    c.drawCentredString(width/2, height-280, participation_text)
+    c.drawCentredString(width/2, height-300, f"held during {event_date}")
+    
+    # Class section if provided
+    if class_section:
+        c.setFont("Helvetica", 12)
+        c.drawCentredString(width/2, height-320, f"Class: {class_section}")
+    
+    # Signature lines
+    c.setFont("Helvetica", 10)
+    c.line(100, 80, 250, 80)
+    c.drawCentredString(175, 60, "HEAD OF DEPARTMENT")
+    
+    c.line(width-250, 80, width-100, 80)
+    c.drawCentredString(width-175, 60, "IT CLUB CONVENER")
+    
+    c.save()
+    buffer.seek(0)
+    return buffer
+
 def generate_certificate(student_name, class_section, event_name, date, output_path=None):
     """
     Generate a personalized certificate for a student using the template image

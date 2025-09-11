@@ -13,8 +13,10 @@
             <form method="post" action="{{ url_for('admin_update_certificate_settings') }}">
                 <div class="form-group mb-3">
                     <label for="eventDate">Event Date (to be displayed on certificates):</label>
-                    <input type="date" class="form-control" id="eventDate" name="event_date" 
+                    <input type="text" class="form-control" id="eventDate" name="event_date" 
+                           placeholder="e.g., March 15-16, 2024 or IT FEST 2024"
                            value="{{ settings.event_date if settings and settings.event_date else '' }}">
+                    <small class="form-text text-muted">Enter the event date/name as you want it to appear on certificates</small>
                 </div>
                 
                 <div class="form-check mb-3">
@@ -63,9 +65,12 @@
                 </table>
             </div>
             
-            <a href="{{ url_for('admin_bulk_generate_certificates') }}" class="btn btn-secondary mt-3">
-                <i class="fas fa-file-archive"></i> Bulk Generate All Certificates
-            </a>
+            <div class="mt-3">
+                <a href="{{ url_for('admin_bulk_generate_certificates') }}" class="btn btn-secondary me-2">
+                    <i class="fas fa-file-archive"></i> Bulk Generate All Certificates
+                </a>
+                <small class="text-muted">Downloads a ZIP file containing certificates for all registered participants</small>
+            </div>
         </div>
     </div>
 </div>

@@ -1,34 +1,50 @@
 {% extends "base.html" %}
 
-{% block title %}Certificate{% endblock %}
+{% block title %}Certificate Preview{% endblock %}
 
 {% block content %}
 <div class="container mt-4">
-    <h1 class="text-center mb-4">Your Certificate</h1>
+    <h1 class="text-center mb-4">Certificate Preview</h1>
     
     {% if certificates_enabled %}
         <div class="card shadow-sm">
             <div class="card-body">
-                <h5 class="card-title">Download Your Certificate</h5>
+                <h5 class="card-title">Preview Your Certificates</h5>
                 <p class="card-text">
                     Congratulations on your participation in the event! 
-                    You can now download your personalized certificate.
+                    You can preview your personalized certificates below.
                 </p>
                 
                 {% if user_game %}
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <strong>Event:</strong> {{ user_game.name }}
                     </div>
                     
-                    {% if already_downloaded %}
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> You have already downloaded your certificate on {{ download_date }}.
+                    <div class="row justify-content-center">
+                        <div class="col-md-8">
+                            <h6 class="text-center mb-3">Available Certificate Previews:</h6>
+                            <div class="d-flex flex-column gap-3">
+                                <a href="{{ url_for('preview_event_certificate') }}" class="btn btn-primary btn-lg" target="_blank">
+                                    <i class="fas fa-eye me-2"></i> Preview Event Certificate
+                                    <small class="d-block">Certificate for participating in {{ user_game.name }}</small>
+                                </a>
+                                <a href="{{ url_for('preview_seminar_certificate') }}" class="btn btn-success btn-lg" target="_blank">
+                                    <i class="fas fa-eye me-2"></i> Preview Seminar Certificate
+                                    <small class="d-block">Certificate for Web Development Seminar Session</small>
+                                </a>
+                            </div>
                         </div>
-                    {% endif %}
+                    </div>
                     
-                    <a href="{{ url_for('download_certificate') }}" class="btn btn-primary">
-                        <i class="fas fa-download"></i> Download Certificate
-                    </a>
+                    <div class="alert alert-info mt-4">
+                        <small>
+                            <i class="fas fa-info-circle"></i> 
+                            <strong>Two Certificate Types Available:</strong><br>
+                            • <strong>Event Certificate:</strong> For participating in {{ user_game.name }}<br>
+                            • <strong>Seminar Certificate:</strong> For participating in Web Development Seminar Session<br>
+                            Click the buttons above to preview each certificate in a new tab.
+                        </small>
+                    </div>
                 {% else %}
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle"></i> You are not registered for any event. Please contact the administrator.
@@ -38,7 +54,7 @@
         </div>
     {% else %}
         <div class="alert alert-info">
-            <i class="fas fa-info-circle"></i> Certificates are not yet available. Please check back later after the event is completed.
+            <i class="fas fa-info-circle"></i> Certificate preview is currently unavailable. Please check back later.
         </div>
     {% endif %}
 </div>

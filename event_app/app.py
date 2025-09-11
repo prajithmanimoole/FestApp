@@ -17,16 +17,25 @@ from io import BytesIO
 # Local import for certificate generation
 try:
     # When imported as a module
-    from .certificate_generator import generate_certificate
+    from .certificate_html_generator import generate_certificate_pdf, generate_html_certificate, generate_dual_certificates
 except (ImportError, ValueError):
     # When run directly
     try:
-        from certificate_generator import generate_certificate
+        from certificate_html_generator import generate_certificate_pdf, generate_html_certificate, generate_dual_certificates
     except ImportError:
         # If the certificate generator isn't available, provide a stub function
-        def generate_certificate(student_name, class_section, event_name, date, output_path=None):
+        def generate_certificate_pdf(student_name, event_name, event_date, class_section=None):
             buffer = BytesIO()
-            buffer.write(b"Certificate generation failed - ReportLab not installed")
+            buffer.write(b"Certificate generation failed - Required libraries not installed")
+            buffer.seek(0)
+            return buffer
+        
+        def generate_html_certificate(student_name, event_name, event_date, class_section=None):
+            return "<html><body><h1>Certificate generation failed - Required libraries not installed</h1></body></html>"
+        
+        def generate_dual_certificates(student_name, event_name, event_date, class_section=None):
+            buffer = BytesIO()
+            buffer.write(b"Certificate generation failed - Required libraries not installed")
             buffer.seek(0)
             return buffer
 
@@ -1585,42 +1594,27 @@ def register_routes(app: Flask) -> None:
             flash('Please login to access your certificate.', 'warning')
             return redirect(url_for('login'))
             
-        # Check if certificates are enabled
-        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
-        certificates_enabled = settings and settings['certificates_enabled'] == 1
-        
         # Get user's game information
         user_game = None
         if user['game_id']:
             user_game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
-            
-        # Check if user has already downloaded their certificate
-        download_record = g.db.execute('SELECT * FROM certificate_downloads WHERE user_id = ?', (user['id'],)).fetchone()
-        already_downloaded = download_record is not None
-        download_date = download_record['download_date'] if already_downloaded else None
+        
+        # Always enable certificate preview (no need for admin settings)
+        certificates_enabled = True
         
         return render_template(
             'certificate.html',
             certificates_enabled=certificates_enabled,
             user_game=user_game,
-            already_downloaded=already_downloaded,
-            download_date=download_date
+            preview_only=True
         )
         
-    @app.route('/certificate/download')
-    def download_certificate():
+    @app.route('/certificate/preview/event')
+    def preview_event_certificate():
         user = fetch_current_user()
         if not user:
-            flash('Please login to download your certificate.', 'warning')
+            flash('Please login to preview your certificate.', 'warning')
             return redirect(url_for('login'))
-            
-        # Check if certificates are enabled
-        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
-        certificates_enabled = settings and settings['certificates_enabled'] == 1
-        
-        if not certificates_enabled:
-            flash('Certificates are not yet available. Please check back later.', 'info')
-            return redirect(url_for('certificate'))
             
         # Get user's game information
         if not user['game_id']:
@@ -1629,35 +1623,55 @@ def register_routes(app: Flask) -> None:
             
         game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
         
-        # Get event date from settings
-        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
+        # Use current date as event date
+        event_date = datetime.now().strftime('%B %d, %Y')
         
-        # Generate certificate
-        certificate_buffer = generate_certificate(
-            student_name=user['name'],
-            class_section=user['class_section'] or 'Student',
-            event_name=game['name'],
-            date=event_date
-        )
-        
-        # Record the download
-        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        download_record = g.db.execute('SELECT 1 FROM certificate_downloads WHERE user_id = ?', (user['id'],)).fetchone()
-        
-        if not download_record:
-            g.db.execute(
-                'INSERT INTO certificate_downloads (user_id, download_date) VALUES (?, ?)',
-                (user['id'], now)
+        # Generate HTML certificate for event
+        try:
+            certificate_html = generate_html_certificate(
+                student_name=user['name'],
+                event_name=game['name'],
+                event_date=event_date,
+                class_section=user['class_section'],
+                certificate_type='event'
             )
-            g.db.commit()
+            return certificate_html
+        except Exception as e:
+            print(f"Error generating event certificate preview: {e}")
+            flash('Error generating certificate preview. Please contact administrator.', 'danger')
+            return redirect(url_for('certificate'))
+    
+    @app.route('/certificate/preview/seminar')
+    def preview_seminar_certificate():
+        user = fetch_current_user()
+        if not user:
+            flash('Please login to preview your certificate.', 'warning')
+            return redirect(url_for('login'))
+            
+        # Get user's game information (for consistency, though seminar doesn't need specific game)
+        if not user['game_id']:
+            flash('You are not registered for any event. Please contact the administrator.', 'warning')
+            return redirect(url_for('certificate'))
+            
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
         
-        # Send the certificate
-        return send_file(
-            certificate_buffer,
-            mimetype='application/pdf',
-            as_attachment=True,
-            download_name=f"certificate_{user['name'].replace(' ', '_')}.pdf"
-        )
+        # Use current date as event date
+        event_date = datetime.now().strftime('%B %d, %Y')
+        
+        # Generate HTML certificate for seminar
+        try:
+            certificate_html = generate_html_certificate(
+                student_name=user['name'],
+                event_name=game['name'],  # This will be overridden for seminar type
+                event_date=event_date,
+                class_section=user['class_section'],
+                certificate_type='seminar'
+            )
+            return certificate_html
+        except Exception as e:
+            print(f"Error generating seminar certificate preview: {e}")
+            flash('Error generating certificate preview. Please contact administrator.', 'danger')
+            return redirect(url_for('certificate'))
         
     @app.route('/admin/certificates', methods=['GET'])
     def admin_certificates():
@@ -1711,6 +1725,143 @@ def register_routes(app: Flask) -> None:
         g.db.commit()
         flash('Certificate settings updated successfully.', 'success')
         return redirect(url_for('admin', tab='certificates'))
+    
+    @app.route('/certificate/preview')
+    @app.route('/certificate/preview/<certificate_type>')
+    def preview_certificate(certificate_type='event'):
+        user = fetch_current_user()
+        if not user:
+            flash('Please login to preview your certificate.', 'warning')
+            return redirect(url_for('login'))
+            
+        # Check if certificates are enabled
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
+        
+        if not certificates_enabled:
+            flash('Certificates are not yet available. Please check back later.', 'info')
+            return redirect(url_for('certificate'))
+            
+        # Get user's game information
+        if not user['game_id']:
+            flash('You are not registered for any event. Please contact the administrator.', 'warning')
+            return redirect(url_for('certificate'))
+            
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
+        
+        # Get event date from settings
+        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
+        
+        # Validate certificate type
+        if certificate_type not in ['event', 'seminar']:
+            certificate_type = 'event'
+        
+        # Generate HTML certificate for preview
+        try:
+            certificate_html = generate_html_certificate(
+                student_name=user['name'],
+                event_name=game['name'],
+                event_date=event_date,
+                class_section=user['class_section'],
+                certificate_type=certificate_type
+            )
+            
+            # Add navigation and download buttons to the preview
+            navigation_html = f'''
+            <div style="position: fixed; top: 10px; left: 10px; z-index: 1000; background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); font-family: Arial, sans-serif;">
+                <h5 style="margin: 0 0 10px 0; color: #333;">Certificate Preview</h5>
+                <div style="margin-bottom: 10px;">
+                    <a href="{url_for('preview_certificate', certificate_type='event')}" 
+                       style="padding: 5px 10px; margin-right: 5px; text-decoration: none; background: {'#007bff' if certificate_type == 'event' else '#6c757d'}; color: white; border-radius: 4px; font-size: 12px;">Event Certificate</a>
+                    <a href="{url_for('preview_certificate', certificate_type='seminar')}" 
+                       style="padding: 5px 10px; text-decoration: none; background: {'#007bff' if certificate_type == 'seminar' else '#6c757d'}; color: white; border-radius: 4px; font-size: 12px;">Seminar Certificate</a>
+                </div>
+                <div>
+                    <a href="{url_for('download_single_certificate', certificate_type=certificate_type)}" 
+                       style="padding: 8px 15px; text-decoration: none; background: #28a745; color: white; border-radius: 4px; font-size: 12px; display: inline-block;">
+                       📥 Download This Certificate
+                    </a>
+                </div>
+                <div style="margin-top: 8px;">
+                    <a href="{url_for('certificate')}" 
+                       style="padding: 5px 10px; text-decoration: none; background: #6c757d; color: white; border-radius: 4px; font-size: 11px;">
+                       ← Back to Certificates
+                    </a>
+                </div>
+            </div>
+            '''
+            
+            return navigation_html + certificate_html
+        except Exception as e:
+            print(f"Error generating certificate preview: {e}")
+            flash('Error generating certificate preview. Please contact administrator.', 'danger')
+            return redirect(url_for('certificate'))
+    
+    @app.route('/certificate/download/<certificate_type>')
+    def download_single_certificate(certificate_type='event'):
+        user = fetch_current_user()
+        if not user:
+            flash('Please login to download your certificate.', 'warning')
+            return redirect(url_for('login'))
+            
+        # Check if certificates are enabled
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
+        
+        if not certificates_enabled:
+            flash('Certificates are not yet available. Please check back later.', 'info')
+            return redirect(url_for('certificate'))
+            
+        # Get user's game information
+        if not user['game_id']:
+            flash('You are not registered for any event. Please contact the administrator.', 'warning')
+            return redirect(url_for('certificate'))
+            
+        game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
+        
+        # Get event date from settings
+        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
+        
+        # Validate certificate type
+        if certificate_type not in ['event', 'seminar']:
+            certificate_type = 'event'
+        
+        # Generate single certificate PDF
+        try:
+            certificate_buffer = generate_certificate_pdf(
+                student_name=user['name'],
+                event_name=game['name'],
+                event_date=event_date,
+                class_section=user['class_section'],
+                certificate_type=certificate_type
+            )
+        except Exception as e:
+            print(f"Error generating certificate: {e}")
+            flash('Error generating certificate. Please contact administrator.', 'danger')
+            return redirect(url_for('certificate'))
+        
+        # Record the download
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        download_record = g.db.execute('SELECT 1 FROM certificate_downloads WHERE user_id = ?', (user['id'],)).fetchone()
+        
+        if not download_record:
+            g.db.execute(
+                'INSERT INTO certificate_downloads (user_id, download_date) VALUES (?, ?)',
+                (user['id'], now)
+            )
+            g.db.commit()
+        
+        # Determine filename based on certificate type
+        cert_type_name = 'Event' if certificate_type == 'event' else 'Seminar'
+        filename = f"{user['name'].replace(' ', '_')}_{cert_type_name}_Certificate.pdf"
+        
+        # Send the certificate
+        return send_file(
+            certificate_buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
         
     @app.route('/admin/certificates/bulk-generate')
     def admin_bulk_generate_certificates():
@@ -1747,13 +1898,25 @@ def register_routes(app: Flask) -> None:
                 file_name = f"certificate_{p['id']}_{p['name'].replace(' ', '_')}.pdf"
                 file_path = os.path.join(temp_dir, file_name)
                 
-                certificate_buffer = generate_certificate(
-                    student_name=p['name'],
-                    class_section=p['class_section'] or 'Student',
-                    event_name=p['game_name'],
-                    date=event_date,
-                    output_path=file_path
-                )
+                try:
+                    # Generate dual certificates for each participant
+                    dual_cert_buffer = generate_dual_certificates(
+                        student_name=p['name'],
+                        event_name=p['game_name'],
+                        event_date=event_date,
+                        class_section=p['class_section']
+                    )
+                    
+                    # Change file extension to .zip since we're now generating dual certificates
+                    file_name = f"certificates_{p['id']}_{p['name'].replace(' ', '_')}.zip"
+                    file_path = os.path.join(temp_dir, file_name)
+                    
+                    # Write to file
+                    with open(file_path, 'wb') as f:
+                        f.write(dual_cert_buffer.getvalue())
+                except Exception as e:
+                    print(f"Error generating certificates for {p['name']}: {e}")
+                    continue
                 
                 certificate_files.append(file_path)
                 
