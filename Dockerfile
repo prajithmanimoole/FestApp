@@ -29,6 +29,10 @@ RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkh
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Add entrypoint script
+COPY entrypoint.sh .
+RUN chmod +x entrypoint.sh
+
 # Copy the rest of the application
 COPY . .
 
@@ -40,5 +44,5 @@ ENV PORT=8080
 # Expose the port the app runs on
 EXPOSE 8080
 
-# Command to run the application - using shell form to allow environment variable substitution
-CMD gunicorn --bind 0.0.0.0:$PORT wsgi:app
+# Use entrypoint script
+ENTRYPOINT ["./entrypoint.sh"]
