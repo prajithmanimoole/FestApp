@@ -89,10 +89,11 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             .certificate-container {{
                 width: 800px;
                 height: 565px;
-                background: linear-gradient(to bottom right, #ffffff, #f0f2f5);
+                background: linear-gradient(to bottom right, #ffffff, #f8fafc);
                 position: relative;
                 overflow: hidden;
                 box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+                border-radius: 12px;
             }}
 
             .certificate {{
@@ -100,7 +101,12 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                 text-align: center;
                 color: #333;
                 position: relative;
-                z-index: 2;
+                z-index: 10;
+                background: rgba(255, 255, 255, 0.95);
+                border-radius: 8px;
+                margin: 20px;
+                height: calc(100% - 40px);
+                box-sizing: border-box;
             }}
 
             .header {{
@@ -225,51 +231,52 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                 font-weight: 500;
             }}
 
-            /* Decorative Shapes */
+            /* Decorative Shapes - Fixed positioning to prevent overlap */
             .shape {{
                 position: absolute;
                 border-radius: 50%;
-                z-index: 1;
+                z-index: 0;
+                opacity: 0.8;
             }}
 
             .shape-1 {{
-                width: 200px;
-                height: 200px;
+                width: 150px;
+                height: 150px;
                 background-color: #facc15;
-                top: -50px;
-                left: -80px;
+                top: -75px;
+                left: -75px;
             }}
 
             .shape-2 {{
-                width: 100px;
-                height: 100px;
+                width: 80px;
+                height: 80px;
                 background-color: #60a5fa;
-                bottom: 20px;
-                right: -30px;
+                bottom: 40px;
+                right: -40px;
             }}
 
             .shape-3 {{
-                width: 150px;
-                height: 150px;
+                width: 120px;
+                height: 120px;
                 background: linear-gradient(to top right, #4ade80, #34d399);
-                bottom: -75px;
-                left: 100px;
+                bottom: -60px;
+                left: 80px;
             }}
 
             .shape-4 {{
-                width: 60px;
-                height: 60px;
+                width: 50px;
+                height: 50px;
                 background-color: #facc15;
-                bottom: 10px;
-                left: 220px;
+                bottom: 30px;
+                left: 200px;
             }}
 
             .shape-5 {{
-                width: 80px;
-                height: 80px;
+                width: 70px;
+                height: 70px;
                 background-color: #3b82f6;
-                bottom: -40px;
-                left: -20px;
+                bottom: -35px;
+                left: -35px;
             }}
         </style>
     </head>
@@ -361,18 +368,30 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         c.setFillColor(white)
         c.rect(0, 0, width, height, fill=True)
         
-        # Add decorative shapes (simplified circles)
-        # Shape 1 - Yellow circle top-left
+        # Add decorative shapes (simplified circles) - Fixed positioning
+        # Shape 1 - Yellow circle top-left (smaller, positioned to not overlap)
         c.setFillColor(HexColor('#facc15'))
-        c.circle(-30, height-100, 100)
+        c.setAlpha(0.8)
+        c.circle(-40, height-80, 75)
         
-        # Shape 2 - Blue circle bottom-right
+        # Shape 2 - Blue circle bottom-right (smaller, positioned safely)
         c.setFillColor(HexColor('#60a5fa'))
-        c.circle(width-50, 70, 50)
+        c.circle(width-40, 80, 40)
         
-        # Shape 3 - Green circle bottom-left
+        # Shape 3 - Green circle bottom-left (positioned to not overlap content)
         c.setFillColor(HexColor('#4ade80'))
-        c.circle(200, 50, 75)
+        c.circle(120, 40, 60)
+        
+        # Shape 4 - Small yellow circle bottom area
+        c.setFillColor(HexColor('#facc15'))
+        c.circle(200, 50, 25)
+        
+        # Shape 5 - Small blue circle bottom-left corner
+        c.setFillColor(HexColor('#3b82f6'))
+        c.circle(-20, 35, 35)
+        
+        # Reset alpha for text
+        c.setAlpha(1.0)
         
         # Header section with logo space
         header_y = height - 80
