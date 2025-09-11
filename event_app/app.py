@@ -1599,8 +1599,9 @@ def register_routes(app: Flask) -> None:
         if user['game_id']:
             user_game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
         
-        # Always enable certificate preview (no need for admin settings)
-        certificates_enabled = True
+        # Get certificate settings
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
         
         return render_template(
             'certificate.html',
@@ -1616,6 +1617,14 @@ def register_routes(app: Flask) -> None:
             flash('Please login to preview your certificate.', 'warning')
             return redirect(url_for('login'))
             
+        # Check if certificates are enabled by admin
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
+        
+        if not certificates_enabled:
+            flash('Certificate preview is currently disabled by the administrator.', 'info')
+            return redirect(url_for('certificate'))
+        
         # Get user's game information
         if not user['game_id']:
             flash('You are not registered for any event. Please contact the administrator.', 'warning')
@@ -1651,6 +1660,14 @@ def register_routes(app: Flask) -> None:
             flash('Please login to preview your certificate.', 'warning')
             return redirect(url_for('login'))
             
+        # Check if certificates are enabled by admin
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        certificates_enabled = settings and settings['certificates_enabled'] == 1
+        
+        if not certificates_enabled:
+            flash('Certificate preview is currently disabled by the administrator.', 'info')
+            return redirect(url_for('certificate'))
+        
         # Get user's game information (for consistency, though seminar doesn't need specific game)
         if not user['game_id']:
             flash('You are not registered for any event. Please contact the administrator.', 'warning')
