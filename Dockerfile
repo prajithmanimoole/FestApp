@@ -35,9 +35,10 @@ COPY . .
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+ENV PORT=8080
 
-# Hardcode port to 8080 - this is what Railway expects
+# Expose the port
 EXPOSE 8080
 
-# Use explicit command - no variable substitution
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "wsgi:app"]
+# Use Python directly instead of gunicorn
+CMD ["python", "wsgi.py"]
