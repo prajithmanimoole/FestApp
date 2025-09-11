@@ -36,11 +36,8 @@ COPY . .
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Expose port - Railway will override this
+# Hardcode port to 8080 - this is what Railway expects
 EXPOSE 8080
 
-# Use a simple script to start the server
-RUN echo "#!/bin/sh\nexec gunicorn --bind 0.0.0.0:8080 wsgi:app" > /app/start.sh && chmod +x /app/start.sh
-
-# Run using the script
-CMD ["/app/start.sh"]
+# Use explicit command - no variable substitution
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "wsgi:app"]
