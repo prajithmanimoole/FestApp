@@ -1623,8 +1623,11 @@ def register_routes(app: Flask) -> None:
             
         game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
         
-        # Use current date as event date
-        event_date = datetime.now().strftime('%B %d, %Y')
+        # Get certificate settings
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        
+        # Get event date from settings
+        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
         
         # Generate HTML certificate for event
         try:
@@ -1655,8 +1658,11 @@ def register_routes(app: Flask) -> None:
             
         game = g.db.execute('SELECT * FROM games WHERE id = ?', (user['game_id'],)).fetchone()
         
-        # Use current date as event date
-        event_date = datetime.now().strftime('%B %d, %Y')
+        # Get certificate settings
+        settings = g.db.execute('SELECT * FROM certificate_settings LIMIT 1').fetchone()
+        
+        # Get event date from settings
+        event_date = settings['event_date'] if settings and settings['event_date'] else datetime.now().strftime('%B %d, %Y')
         
         # Generate HTML certificate for seminar
         try:

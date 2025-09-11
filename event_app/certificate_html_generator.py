@@ -291,8 +291,7 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                     <h6>PROUDLY PRESENTED TO</h6>
                     <div class="participant-name">{student_name.upper()}</div>
                     <p class="participation-text">for actively participating in the {participation_event} held during</p>
-                    <p class="event-name">{event_display_name}</p>
-                    <p class="participation-text">on {event_date}</p>
+                    <p class="event-name">{event_date}</p>
                     {f'<p class="participation-text">Class: {class_section}</p>' if class_section else ''}
                     <p class="organised-by">Organised by - III BCA 'D' -</p>
                 </div>
@@ -456,24 +455,19 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         
         c.drawCentredString(width/2, height-360, f"for actively participating in the {participation_event} held during")
         
-        # Event name
+        # Event date (instead of event name)
         c.setFillColor(HexColor('#1e3a8a'))
         c.setFont("Helvetica-Bold", 18)
-        c.drawCentredString(width/2, height-390, event_display_name)
-        
-        # Event date
-        c.setFillColor(black)
-        c.setFont("Helvetica", 14)
-        c.drawCentredString(width/2, height-420, f"on {event_date}")
+        c.drawCentredString(width/2, height-390, event_date)
         
         # Class section if provided
         if class_section:
             c.setFont("Helvetica", 12)
-            c.drawCentredString(width/2, height-445, f"Class: {class_section}")
+            c.drawCentredString(width/2, height-415, f"Class: {class_section}")
         
         # Organized by text
         c.setFont("Helvetica", 14)
-        c.drawCentredString(width/2, height-480, "Organised by - III BCA 'D' -")
+        c.drawCentredString(width/2, height-450, "Organised by - III BCA 'D' -")
         
         # Signature sections
         c.setFillColor(black)
