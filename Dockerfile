@@ -29,20 +29,16 @@ RUN wget https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkh
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Add entrypoint script
-COPY entrypoint.sh .
-RUN chmod +x entrypoint.sh
-
 # Copy the rest of the application
 COPY . .
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
-ENV PORT=8080
 
-# Expose the port the app runs on
+# Railway specific port - hardcoded
+ENV PORT=8080
 EXPOSE 8080
 
-# Use entrypoint script
-ENTRYPOINT ["./entrypoint.sh"]
+# Use a fixed port for Railway
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "wsgi:app"]
