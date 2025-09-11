@@ -232,7 +232,7 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
 
             .footer {{
                 display: flex;
-                justify-content: space-between;
+                justify-content: space-around;
                 margin-top: 25px;
                 padding: 0 30px;
                 flex-shrink: 0;
@@ -323,10 +323,6 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                     <div class="signature">
                         <p>_________________________</p>
                         <p>HEAD OF DEPARTMENT</p>
-                    </div>
-                    <div class="signature">
-                        <p>_________________________</p>
-                        <p>PRINCIPAL</p>
                     </div>
                     <div class="signature">
                         <p>_________________________</p>
@@ -504,22 +500,17 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         c.setFont("Helvetica", 14)
         c.drawCentredString(width/2, height-420, "Organised by - III BCA 'D' -")
         
-        # Signature sections - Updated to three columns
+        # Signature sections - Updated to two columns
         c.setFillColor(black)
         c.setFont("Helvetica", 12)
         
         # Left signature - Head of Department
-        left_x = width * 0.2
+        left_x = width * 0.3
         c.drawCentredString(left_x, 80, "_________________________")
         c.drawCentredString(left_x, 60, "HEAD OF DEPARTMENT")
         
-        # Center signature - Principal
-        center_x = width * 0.5
-        c.drawCentredString(center_x, 80, "_________________________")
-        c.drawCentredString(center_x, 60, "PRINCIPAL")
-        
         # Right signature - IT Club Convener
-        right_x = width * 0.8
+        right_x = width * 0.7
         c.drawCentredString(right_x, 80, "_________________________")
         c.drawCentredString(right_x, 60, "IT CLUB CONVENER")
         
