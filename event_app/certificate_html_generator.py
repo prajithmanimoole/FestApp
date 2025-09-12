@@ -66,6 +66,7 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Certificate of Participation</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&family=Montserrat:wght@400;500;600&display=swap');
             
@@ -76,6 +77,7 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
 
             body {{
                 display: flex;
+                flex-direction: column;
                 justify-content: center;
                 align-items: center;
                 min-height: 100vh;
@@ -84,6 +86,47 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                 font-family: 'Montserrat', sans-serif;
                 width: 297mm;
                 height: 210mm;
+                padding: 20px 0;
+                box-sizing: border-box;
+            }}
+
+            .download-container {{
+                margin-bottom: 20px;
+                text-align: center;
+            }}
+
+            .download-btn {{
+                background: linear-gradient(135deg, #1e3a8a, #3b82f6);
+                color: white;
+                border: none;
+                padding: 12px 24px;
+                border-radius: 8px;
+                font-size: 14px;
+                font-weight: 600;
+                cursor: pointer;
+                box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+                transition: all 0.3s ease;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }}
+
+            .download-btn:hover {{
+                background: linear-gradient(135deg, #1e40af, #2563eb);
+                transform: translateY(-2px);
+                box-shadow: 0 6px 16px rgba(30, 58, 138, 0.4);
+            }}
+
+            .download-btn:active {{
+                transform: translateY(0);
+            }}
+
+            @media print {{
+                .download-container {{
+                    display: none;
+                }}
+                body {{
+                    padding: 0;
+                }}
             }}
 
             .certificate-container {{
@@ -299,7 +342,12 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
         </style>
     </head>
     <body>
-        <div class="certificate-container">
+        <div class="download-container">
+            <button class="download-btn" onclick="downloadCertificate()">
+                📥 Download Certificate
+            </button>
+        </div>
+        <div class="certificate-container" id="certificate-content">
             <div class="certificate">
                 <div class="header">
                     {f'<img src="{logo_data_url}" alt="College Logo" class="college-logo">' if logo_data_url else ''}
@@ -336,6 +384,48 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             <div class="shape shape-4"></div>
             <div class="shape shape-5"></div>
         </div>
+        
+        <script>
+            function downloadCertificate() {{
+                const button = document.querySelector('.download-btn');
+                const originalText = button.innerHTML;
+                
+                // Show loading state
+                button.innerHTML = '⏳ Generating...';
+                button.disabled = true;
+                
+                // Hide the download button temporarily
+                document.querySelector('.download-container').style.display = 'none';
+                
+                html2canvas(document.getElementById('certificate-content'), {{
+                    allowTaint: true,
+                    useCORS: true,
+                    scale: 2,
+                    backgroundColor: '#f8fafc',
+                    width: 800,
+                    height: 565
+                }}).then(function(canvas) {{
+                    // Create download link
+                    const link = document.createElement('a');
+                    link.download = 'Certificate_{student_name.replace(" ", "_")}.png';
+                    link.href = canvas.toDataURL('image/png');
+                    link.click();
+                    
+                    // Restore button and show download container
+                    document.querySelector('.download-container').style.display = 'block';
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }}).catch(function(error) {{
+                    console.error('Error generating certificate:', error);
+                    alert('Error generating certificate. Please try again.');
+                    
+                    // Restore button and show download container
+                    document.querySelector('.download-container').style.display = 'block';
+                    button.innerHTML = originalText;
+                    button.disabled = false;
+                }});
+            }}
+        </script>
     </body>
     </html>
     """
