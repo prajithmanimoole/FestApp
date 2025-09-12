@@ -347,45 +347,31 @@ body {
   outline-offset: 2px;
 }
 
-/* Context Menu Styles */
-.context-menu {
-  position: absolute;
-  background: var(--white);
-  border: 1px solid rgba(37, 99, 235, 0.2);
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
-  padding: 4px 0;
-  min-width: 180px;
-  z-index: 1000;
-  display: none;
-  font-size: 14px;
-}
-
-.context-menu-item {
-  padding: 8px 16px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--dark-slate);
-  transition: background-color 0.2s ease;
-}
-
-.context-menu-item:hover {
-  background-color: rgba(37, 99, 235, 0.1);
-  color: var(--primary-blue);
-}
-
-.context-menu-item i {
-  width: 16px;
-  text-align: center;
-  color: var(--error-red);
-}
-
-/* Participant row hover effect */
+/* Click-to-remove participant row styles */
 tr[data-participant-id] {
-  cursor: context-menu;
+  cursor: pointer;
   transition: background-color 0.2s ease;
+  position: relative;
+}
+
+tr[data-participant-id]:hover {
+  background-color: #fff3cd !important;
+}
+
+tr[data-participant-id]:hover::after {
+  content: "Click to remove";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--error-red);
+  color: white;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  z-index: 10;
 }
 
 tr[data-participant-id]:hover {

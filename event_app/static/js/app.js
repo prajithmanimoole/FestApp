@@ -11,100 +11,82 @@
   });
 })();
 
-// Right-click context menu for removing participants
+// Click-to-remove functionality for participants
 (function(){
-  let contextMenu = null;
-  
-  // Create context menu
-  function createContextMenu() {
-    if (contextMenu) return contextMenu;
+  // Handle participant removal
+  function handleParticipantRemoval(event) {
+    const participantRow = event.target.closest('tr[data-participant-id]');
+    if (!participantRow) return;
     
-    contextMenu = document.createElement('div');
-    contextMenu.id = 'participantContextMenu';
-    contextMenu.className = 'context-menu';
-    contextMenu.innerHTML = `
-      <div class="context-menu-item" data-action="remove">
-        <i class="fas fa-trash"></i> Remove Participant
-      </div>
-    `;
-    document.body.appendChild(contextMenu);
-    return contextMenu;
-  }
-  
-  // Show context menu
-  function showContextMenu(event, participantId, participantName) {
-    event.preventDefault();
-    event.stopPropagation();
+    // Don't trigger on form elements or buttons
+    if (event.target.closest('form, button, input, select, textarea, a')) return;
     
-    const menu = createContextMenu();
-    menu.style.display = 'block';
-    menu.style.left = event.pageX + 'px';
-    menu.style.top = event.pageY + 'px';
-    menu.setAttribute('data-participant-id', participantId);
-    menu.setAttribute('data-participant-name', participantName);
+    const participantId = participantRow.getAttribute('data-participant-id');
+    const participantName = participantRow.getAttribute('data-participant-name');
     
-    // Position menu within viewport
-    const rect = menu.getBoundingClientRect();
-    if (rect.right > window.innerWidth) {
-      menu.style.left = (event.pageX - rect.width) + 'px';
-    }
-    if (rect.bottom > window.innerHeight) {
-      menu.style.top = (event.pageY - rect.height) + 'px';
-    }
-  }
-  
-  // Hide context menu
-  function hideContextMenu() {
-    if (contextMenu) {
-      contextMenu.style.display = 'none';
-    }
-  }
-  
-  // Handle context menu actions
-  function handleContextAction(event) {
-    const action = event.target.closest('.context-menu-item')?.getAttribute('data-action');
-    if (!action) return;
-    
-    const participantId = contextMenu.getAttribute('data-participant-id');
-    const participantName = contextMenu.getAttribute('data-participant-name');
-    
-    if (action === 'remove' && participantId) {
-      if (confirm(`Are you sure you want to remove ${participantName}?`)) {
+    if (participantId && participantName) {
+      if (confirm(`Click to remove: Are you sure you want to remove ${participantName}?`)) {
         // Find and submit the remove form
         const removeForm = document.querySelector(`form[action*="/admin/user/remove/${participantId}"]`);
         if (removeForm) {
           removeForm.submit();
+        } else {
+          // If no form found, try to make a direct request
+          fetch(`/admin/user/remove/${participantId}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          }).then(response => {
+            if (response.ok) {
+              location.reload(); // Refresh page to show updated data
+            } else {
+              alert('Failed to remove participant. Please try again.');
+            }
+          }).catch(error => {
+            console.error('Error:', error);
+            alert('Error removing participant. Please try again.');
+          });
         }
       }
     }
-    
-    hideContextMenu();
+  }
+  
+  // Add visual feedback for clickable rows
+  function addRowStyling() {
+    document.querySelectorAll('tr[data-participant-id]').forEach(row => {
+      row.style.cursor = 'pointer';
+      row.title = 'Click to remove this participant';
+      
+      // Add hover effect
+      row.addEventListener('mouseenter', function() {
+        this.style.backgroundColor = '#fff3cd';
+      });
+      
+      row.addEventListener('mouseleave', function() {
+        this.style.backgroundColor = '';
+      });
+    });
   }
   
   // Add event listeners
   document.addEventListener('DOMContentLoaded', function() {
-    // Add right-click listeners to participant rows
-    document.addEventListener('contextmenu', function(event) {
-      const participantRow = event.target.closest('tr[data-participant-id]');
-      if (participantRow) {
-        const participantId = participantRow.getAttribute('data-participant-id');
-        const participantName = participantRow.getAttribute('data-participant-name');
-        showContextMenu(event, participantId, participantName);
-      }
+    // Add click listeners to participant rows
+    document.addEventListener('click', handleParticipantRemoval);
+    
+    // Add styling to rows
+    addRowStyling();
+    
+    // Re-apply styling when content changes (for dynamic content)
+    const observer = new MutationObserver(function(mutations) {
+      mutations.forEach(function(mutation) {
+        if (mutation.type === 'childList') {
+          addRowStyling();
+        }
+      });
     });
     
-    // Hide context menu on click outside
-    document.addEventListener('click', hideContextMenu);
-    
-    // Handle context menu actions
-    document.addEventListener('click', handleContextAction);
-    
-    // Hide context menu on escape key
-    document.addEventListener('keydown', function(event) {
-      if (event.key === 'Escape') {
-        hideContextMenu();
-      }
-    });
+    observer.observe(document.body, { childList: true, subtree: true });
   });
 })();
 
