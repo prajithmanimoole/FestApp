@@ -349,16 +349,20 @@ body {
 
 /* Click-to-remove participant row styles */
 tr[data-participant-id] {
-  cursor: pointer;
   transition: background-color 0.2s ease;
   position: relative;
 }
 
-tr[data-participant-id]:hover {
+/* Clickable rows (without buttons) */
+tr[data-participant-id].clickable-row {
+  cursor: pointer;
+}
+
+tr[data-participant-id].clickable-row:hover {
   background-color: #fff3cd !important;
 }
 
-tr[data-participant-id]:hover::after {
+tr[data-participant-id].clickable-row:hover::after {
   content: "Click to remove";
   position: absolute;
   right: 10px;
@@ -372,6 +376,11 @@ tr[data-participant-id]:hover::after {
   font-weight: 500;
   pointer-events: none;
   z-index: 10;
+}
+
+/* For rows with buttons, just show subtle hover effect */
+tr[data-participant-id]:not(.clickable-row):hover {
+  background-color: rgba(0,0,0,0.05) !important;
 }
 
 tr[data-participant-id]:hover {
