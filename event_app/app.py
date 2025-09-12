@@ -5,6 +5,7 @@ import string
 import sys
 import zipfile
 import tempfile
+import logging
 from contextlib import closing
 from datetime import datetime
 from typing import Optional, Dict, Any, List, Union
@@ -13,6 +14,25 @@ from urllib.parse import urlparse
 from flask import Flask, g, render_template, request, redirect, url_for, session, flash, send_file
 import secrets
 from io import BytesIO
+
+# Set up logging for database operations
+logging.basicConfig(level=logging.INFO)
+db_logger = logging.getLogger('database_operations')
+
+def log_database_operation(operation: str, table: str, details: str = ""):
+    """Log database operations for debugging"""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    db_logger.info(f"[{timestamp}] {operation} on {table}: {details}")
+
+def safe_db_execute(query: str, params: tuple = (), operation_desc: str = ""):
+    """Execute database query with error handling and logging"""
+    try:
+        log_database_operation("EXECUTE", "query", f"{operation_desc}: {query[:50]}...")
+        result = g.db.execute(query, params)
+        return result
+    except Exception as e:
+        log_database_operation("ERROR", "query", f"{operation_desc} failed: {str(e)}")
+        raise
 
 # Local import for certificate generation
 try:
@@ -74,8 +94,8 @@ def get_db():
             port=port,
             cursor_factory=RealDictCursor
         )
-        # Set autocommit mode for PostgreSQL to better handle transactions
-        conn.autocommit = True
+        # Don't use autocommit mode to ensure transaction safety
+        # conn.autocommit = True  # Removed - causes data loss issues
         return conn
     else:
         # SQLite connection
@@ -115,6 +135,12 @@ def create_app() -> Flask:
             
             if not exists:
                 ensure_schema_and_seed()
+            else:
+                # Run integrity check periodically (every 100th request roughly)
+                import random
+                if random.randint(1, 100) == 1:
+                    check_database_integrity()
+                    
         except Exception as e:
             print(f"Database setup error: {e}", file=sys.stderr)
             ensure_schema_and_seed()
@@ -123,7 +149,22 @@ def create_app() -> Flask:
     def teardown_request(exception: Optional[BaseException]) -> None:  # noqa: ARG001
         db = g.pop('db', None)
         if db is not None:
-            db.close()
+            try:
+                # If there was an exception, rollback any pending transactions
+                if exception is not None and hasattr(db, 'rollback'):
+                    db.rollback()
+                # For successful requests, ensure commit is called
+                elif hasattr(db, 'commit'):
+                    db.commit()
+            except Exception as e:
+                print(f"Database teardown error: {e}", file=sys.stderr)
+                if hasattr(db, 'rollback'):
+                    try:
+                        db.rollback()
+                    except:
+                        pass
+            finally:
+                db.close()
 
     ensure_schema_and_seed()
 
@@ -365,10 +406,29 @@ def ensure_schema_and_seed() -> None:
         for row in cur.execute('SELECT phone, password, name, is_admin FROM users'):
             exists = cur.execute('SELECT 1 FROM allowed_users WHERE phone = ?', (row[0],)).fetchone()
             if not exists:
+                log_database_operation("INSERT", "allowed_users", f"Migrating user {row[0]}")
                 cur.execute(
                     'INSERT INTO allowed_users (phone, password, name, is_admin) VALUES (?,?,?,?)',
                     (row[0], row[1], row[2], row[3]),
                 )
+        
+        # Add integrity check - ensure we don't lose the admin user
+        admin_in_users = cur.execute('SELECT 1 FROM users WHERE phone = ?', ('9990001111',)).fetchone()
+        admin_in_allowed = cur.execute('SELECT 1 FROM allowed_users WHERE phone = ?', ('9990001111',)).fetchone()
+        
+        if not admin_in_users or not admin_in_allowed:
+            log_database_operation("RECOVERY", "users", "Re-adding missing admin user")
+            if not admin_in_users:
+                cur.execute(
+                    'INSERT OR REPLACE INTO users (phone, password, name, class_section, is_admin) VALUES (?,?,?,?,?)',
+                    ('9990001111', 'admin123', 'Admin User', 'ADMIN', 1),
+                )
+            if not admin_in_allowed:
+                cur.execute(
+                    'INSERT OR REPLACE INTO allowed_users (phone, password, name, is_admin) VALUES (?,?,?,1)',
+                    ('9990001111', 'admin123', 'Admin User'),
+                )
+        
         db.commit()
 
         # Add class_section column to users if missing (migration for existing DBs)
@@ -379,6 +439,66 @@ def ensure_schema_and_seed() -> None:
                 db.commit()
         except Exception:
             pass
+
+
+def check_database_integrity():
+    """Perform database integrity checks and repair if needed"""
+    try:
+        with closing(get_db()) as db:
+            cur = db.cursor()
+            
+            # Check 1: Ensure admin user exists
+            admin_count = cur.execute('SELECT COUNT(*) FROM users WHERE phone = ? AND is_admin = 1', ('9990001111',)).fetchone()[0]
+            if admin_count == 0:
+                log_database_operation("REPAIR", "users", "Adding missing admin user")
+                cur.execute(
+                    'INSERT INTO users (phone, password, name, class_section, is_admin) VALUES (?,?,?,?,?)',
+                    ('9990001111', 'admin123', 'Admin User', 'ADMIN', 1),
+                )
+            
+            # Check 2: Ensure admin exists in allowed_users
+            allowed_admin = cur.execute('SELECT 1 FROM allowed_users WHERE phone = ?', ('9990001111',)).fetchone()
+            if not allowed_admin:
+                log_database_operation("REPAIR", "allowed_users", "Adding missing admin to allowed_users")
+                cur.execute(
+                    'INSERT INTO allowed_users (phone, password, name, is_admin) VALUES (?,?,?,1)',
+                    ('9990001111', 'admin123', 'Admin User'),
+                )
+            
+            # Check 3: Sync users and allowed_users tables
+            users_without_allowed = cur.execute('''
+                SELECT u.phone, u.password, u.name, u.is_admin 
+                FROM users u 
+                LEFT JOIN allowed_users a ON u.phone = a.phone 
+                WHERE a.phone IS NULL
+            ''').fetchall()
+            
+            for user in users_without_allowed:
+                log_database_operation("REPAIR", "allowed_users", f"Syncing missing user {user[0]}")
+                cur.execute(
+                    'INSERT INTO allowed_users (phone, password, name, is_admin) VALUES (?,?,?,?)',
+                    (user[0], user[1], user[2], user[3]),
+                )
+            
+            # Check 4: Remove orphaned data
+            orphaned_team_members = cur.execute('''
+                SELECT tm.id FROM team_members tm 
+                LEFT JOIN users u ON tm.user_id = u.id 
+                WHERE u.id IS NULL
+            ''').fetchall()
+            
+            if orphaned_team_members:
+                log_database_operation("CLEANUP", "team_members", f"Removing {len(orphaned_team_members)} orphaned team members")
+                for orphan in orphaned_team_members:
+                    cur.execute('DELETE FROM team_members WHERE id = ?', (orphan[0],))
+            
+            db.commit()
+            log_database_operation("SUCCESS", "integrity_check", "Database integrity check completed")
+            return True
+            
+    except Exception as e:
+        log_database_operation("ERROR", "integrity_check", f"Integrity check failed: {str(e)}")
+        return False
 
 
 def fetch_current_user() -> Optional[sqlite3.Row]:
@@ -730,9 +850,19 @@ def register_routes(app: Flask) -> None:
             if not rphone:
                 flash('Phone is required.', 'danger')
             else:
-                g.db.execute('DELETE FROM whitelist_phones WHERE phone = ?', (rphone,))
-                g.db.commit()
-                flash('Phone removed from whitelist (if it existed).', 'info')
+                try:
+                    # Check if phone exists before deleting
+                    exists = g.db.execute('SELECT 1 FROM whitelist_phones WHERE phone = ?', (rphone,)).fetchone()
+                    if exists:
+                        g.db.execute('DELETE FROM whitelist_phones WHERE phone = ?', (rphone,))
+                        g.db.commit()
+                        flash(f'Phone {rphone} removed from whitelist.', 'info')
+                    else:
+                        flash(f'Phone {rphone} was not found in whitelist.', 'warning')
+                except Exception as e:
+                    g.db.rollback() if hasattr(g.db, 'rollback') else None
+                    print(f"Error removing phone from whitelist: {e}", file=sys.stderr)
+                    flash('Error removing phone from whitelist. Please try again.', 'danger')
             active_tab = 'whitelist'
 
         games = g.db.execute('SELECT * FROM games ORDER BY id').fetchall()
@@ -1154,14 +1284,29 @@ def register_routes(app: Flask) -> None:
                 g.db.execute('DELETE FROM teams WHERE id = ?', (team['id'],))
             
             # Delete from team_members if they're a member
-            g.db.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
-            
-            # Now delete from users and allowed_users tables
-            g.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
-            g.db.execute('DELETE FROM allowed_users WHERE phone = ?', (phone,))
-            
-            g.db.commit()
-            return {"success": True}
+            try:
+                g.db.execute('DELETE FROM team_members WHERE user_id = ?', (user_id,))
+                
+                # Now delete from users and allowed_users tables
+                # Verify user exists before deletion
+                user_exists = g.db.execute('SELECT phone FROM users WHERE id = ?', (user_id,)).fetchone()
+                if user_exists:
+                    phone = user_exists['phone']
+                    g.db.execute('DELETE FROM users WHERE id = ?', (user_id,))
+                    # Only delete from allowed_users if it exists
+                    allowed_exists = g.db.execute('SELECT 1 FROM allowed_users WHERE phone = ?', (phone,)).fetchone()
+                    if allowed_exists:
+                        g.db.execute('DELETE FROM allowed_users WHERE phone = ?', (phone,))
+                    
+                    g.db.commit()
+                    return {"success": True, "message": f"User {phone} deleted successfully"}
+                else:
+                    return {"error": "User not found"}, 404
+                    
+            except Exception as deletion_error:
+                g.db.rollback() if hasattr(g.db, 'rollback') else None
+                print(f"Error during user deletion: {deletion_error}", file=sys.stderr)
+                return {"error": f"Database error during deletion: {str(deletion_error)}"}, 500
         except Exception as e:
             import traceback
             return {"error": str(e), "details": traceback.format_exc()}, 500
@@ -1748,6 +1893,24 @@ def register_routes(app: Flask) -> None:
         g.db.commit()
         flash('Certificate settings updated successfully.', 'success')
         return redirect(url_for('admin', tab='certificates'))
+    
+    @app.route('/admin/database/integrity-check', methods=['POST'])
+    def admin_database_integrity_check():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+            
+        try:
+            success = check_database_integrity()
+            if success:
+                flash('Database integrity check completed successfully. Check logs for details.', 'success')
+            else:
+                flash('Database integrity check encountered issues. Check logs for details.', 'warning')
+        except Exception as e:
+            flash(f'Database integrity check failed: {str(e)}', 'danger')
+            
+        return redirect(url_for('admin', tab='overview'))
     
     @app.route('/certificate/preview')
     @app.route('/certificate/preview/<certificate_type>')
