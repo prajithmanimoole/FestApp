@@ -156,8 +156,8 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             }}
 
             .certificate-container {{
-                width: 800px;
-                height: 565px;
+                width: 1000px;
+                height: 700px;
                 background: linear-gradient(to bottom right, #ffffff, #f8fafc);
                 position: relative;
                 overflow: hidden;
@@ -183,41 +183,44 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
 
             .header {{
                 display: flex;
+                flex-direction: column;
                 align-items: center;
                 justify-content: center;
                 padding-bottom: 15px;
                 flex-shrink: 0;
+                text-align: center;
             }}
 
             .college-logo {{
                 width: 70px;
-                margin-right: 15px;
+                margin-bottom: 15px;
+                margin-right: 0;
             }}
 
             .header-text {{
-                text-align: left;
+                text-align: center;
             }}
 
             .header h1 {{
                 color: #1e3a8a;
-                font-size: 16px;
+                font-size: 20px;
                 font-weight: 600;
                 margin: 0;
             }}
 
             .header p {{
-                font-size: 11px;
+                font-size: 14px;
                 margin: 3px 0 15px;
             }}
 
             .header h2 {{
-                font-size: 13px;
+                font-size: 16px;
                 font-weight: 500;
                 margin: 0;
             }}
 
             .header h3 {{
-                font-size: 14px;
+                font-size: 18px;
                 font-weight: 600;
                 margin: 3px 0 20px;
             }}
@@ -302,9 +305,10 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             .footer {{
                 display: flex;
                 justify-content: space-around;
-                margin-top: 25px;
+                margin-top: 15px;
                 padding: 0 30px;
                 flex-shrink: 0;
+                min-height: 115px;
             }}
 
             .signature {{
@@ -313,22 +317,25 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                 display: flex;
                 flex-direction: column;
                 align-items: center;
-                justify-content: flex-end;
+                justify-content: flex-start;
+                padding: 0 20px;
             }}
 
             .signature p {{
-                margin: 5px 0 0 0;
-                font-size: 11px;
-                font-weight: 500;
+                margin: 12px 0 0 0;
+                font-size: 13px;
+                font-weight: 600;
+                color: #333;
+                letter-spacing: 0.5px;
             }}
 
             .signature-img {{
-                max-height: 50px;
-                max-width: 120px;
+                max-height: 55px;
+                max-width: 130px;
                 height: auto;
                 width: auto;
                 object-fit: contain;
-                margin-bottom: 5px;
+                margin-bottom: 0px;
                 display: block;
             }}
 
@@ -442,8 +449,8 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                     useCORS: true,
                     scale: 2,
                     backgroundColor: '#f8fafc',
-                    width: 800,
-                    height: 565
+                    width: 1000,
+                    height: 700
                 }}).then(function(canvas) {{
                     // Create download link
                     const link = document.createElement('a');
@@ -505,11 +512,21 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         from .certificate_generator import generate_simple_certificate_pdf
         return generate_simple_certificate_pdf(student_name, event_name, event_date, class_section, certificate_type)
     except ImportError:
-        # Load signature images for ReportLab
+        # Load signature images and logo for ReportLab
         import os
         import base64
         from PIL import Image
         from reportlab.lib.utils import ImageReader
+        
+        # Try to load the logo
+        logo_path = os.path.join(os.path.dirname(__file__), 'static', 'VC_logo.png')
+        logo_img = None
+        
+        try:
+            if os.path.exists(logo_path):
+                logo_img = ImageReader(logo_path)
+        except Exception as e:
+            print(f"Could not load logo for ReportLab: {e}")
         
         # Try to load the signatures
         hod_signature_path = os.path.join(os.path.dirname(__file__), 'static', 'hod_signature.png')
@@ -565,23 +582,35 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         # Reset alpha for text
         c.setAlpha(1.0)
         
-        # Header section with logo space
-        header_y = height - 80
+        # Header section with centered logo and text
+        header_y = height - 50
         
-        # College name and details
+        # Draw logo at top center
+        if logo_img:
+            try:
+                logo_width = 60
+                logo_height = 60
+                logo_x = (width - logo_width) / 2
+                c.drawImage(logo_img, logo_x, header_y, width=logo_width, height=logo_height, preserveAspectRatio=True)
+                # Adjust header_y to position text below logo
+                header_y = header_y - 20
+            except Exception as e:
+                print(f"Could not draw logo: {e}")
+        
+        # College name and details - CENTERED with larger fonts, positioned below logo
         c.setFillColor(HexColor('#1e3a8a'))
-        c.setFont("Helvetica-Bold", 18)
-        c.drawString(150, header_y, "VIVEKANANDA COLLEGE OF ARTS, SCIENCE & COMMERCE (AUTONOMOUS)")
+        c.setFont("Helvetica-Bold", 22)
+        c.drawCentredString(width/2, header_y - 30, "VIVEKANANDA COLLEGE OF ARTS, SCIENCE & COMMERCE (AUTONOMOUS)")
         
         c.setFillColor(black)
-        c.setFont("Helvetica", 12)
-        c.drawString(150, header_y - 25, "NEHRU NAGAR, PUTTUR D.K., 574203")
+        c.setFont("Helvetica", 16)
+        c.drawCentredString(width/2, header_y - 55, "NEHRU NAGAR, PUTTUR D.K., 574203")
         
-        c.setFont("Helvetica", 14)
-        c.drawString(150, header_y - 50, "DEPARTMENT OF COMPUTER SCIENCE")
+        c.setFont("Helvetica", 18)
+        c.drawCentredString(width/2, header_y - 80, "DEPARTMENT OF COMPUTER SCIENCE")
         
-        c.setFont("Helvetica-Bold", 16)
-        c.drawString(150, header_y - 75, "INFORMATION TECHNOLOGY CLUB")
+        c.setFont("Helvetica-Bold", 20)
+        c.drawCentredString(width/2, header_y - 105, "INFORMATION TECHNOLOGY CLUB")
         
         # Certificate title
         c.setFillColor(black)
@@ -655,33 +684,41 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         c.setFont("Helvetica", 14)
         c.drawCentredString(width/2, height-420, "Organised by - III BCA 'D' -")
         
-        # Signature sections - Updated to two columns with images
+        # Signature sections - Updated positioning for better visibility
         c.setFillColor(black)
-        c.setFont("Helvetica", 12)
+        c.setFont("Helvetica-Bold", 13)
         
         # Left signature - Head of Department
         left_x = width * 0.3
         if hod_signature_img:
-            # Draw signature image (smaller size for better alignment)
+            # Draw signature image higher up
             try:
-                c.drawImage(hod_signature_img, left_x - 40, 90, width=80, height=30, preserveAspectRatio=True)
+                c.drawImage(hod_signature_img, left_x - 45, 135, width=90, height=35, preserveAspectRatio=True)
             except:
-                c.drawCentredString(left_x, 80, "_________________________")
+                c.drawCentredString(left_x, 145, "_________________________")
         else:
-            c.drawCentredString(left_x, 80, "_________________________")
-        c.drawCentredString(left_x, 60, "HEAD OF DEPARTMENT")
+            c.drawCentredString(left_x, 145, "_________________________")
+        
+        # Draw title clearly below signature with good spacing
+        c.setFillColor(black)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawCentredString(left_x, 115, "HEAD OF DEPARTMENT")
         
         # Right signature - IT Club Convener  
         right_x = width * 0.7
         if it_signature_img:
-            # Draw signature image (smaller size for better alignment)
+            # Draw signature image higher up
             try:
-                c.drawImage(it_signature_img, right_x - 40, 90, width=80, height=30, preserveAspectRatio=True)
+                c.drawImage(it_signature_img, right_x - 45, 135, width=90, height=35, preserveAspectRatio=True)
             except:
-                c.drawCentredString(right_x, 80, "_________________________")
+                c.drawCentredString(right_x, 145, "_________________________")
         else:
-            c.drawCentredString(right_x, 80, "_________________________")
-        c.drawCentredString(right_x, 60, "IT CLUB CONVENER")
+            c.drawCentredString(right_x, 145, "_________________________")
+        
+        # Draw title clearly below signature with good spacing
+        c.setFillColor(black)
+        c.setFont("Helvetica-Bold", 12)
+        c.drawCentredString(right_x, 115, "IT CLUB CONVENER")
         
         c.save()
         buffer.seek(0)
