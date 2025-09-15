@@ -40,7 +40,7 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
         participation_event = f"event {event_name}"
         event_display_name = f"'{event_name.upper()}'"
     
-    # For the logo, we'll use a base64 encoded version or a relative path
+    # For the logo and signatures, we'll use base64 encoded versions
     # Since we're generating this from Python, we'll use a data URL approach
     import os
     import base64
@@ -58,6 +58,32 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
         print(f"Could not load logo: {e}")
         # Fallback to a placeholder or no logo
         logo_data_url = ""
+    
+    # Try to load the signatures and convert to base64
+    hod_signature_path = os.path.join(os.path.dirname(__file__), 'static', 'hod_signature.png')
+    hod_signature_data_url = ""
+    
+    try:
+        if os.path.exists(hod_signature_path):
+            with open(hod_signature_path, 'rb') as sig_file:
+                sig_data = base64.b64encode(sig_file.read()).decode('utf-8')
+                hod_signature_data_url = f"data:image/png;base64,{sig_data}"
+    except Exception as e:
+        print(f"Could not load HOD signature: {e}")
+        hod_signature_data_url = ""
+    
+    # IT Convener signature
+    it_signature_path = os.path.join(os.path.dirname(__file__), 'static', 'it_convener_signature.png')
+    it_signature_data_url = ""
+    
+    try:
+        if os.path.exists(it_signature_path):
+            with open(it_signature_path, 'rb') as sig_file:
+                sig_data = base64.b64encode(sig_file.read()).decode('utf-8')
+                it_signature_data_url = f"data:image/png;base64,{sig_data}"
+    except Exception as e:
+        print(f"Could not load IT Convener signature: {e}")
+        it_signature_data_url = ""
     
     html_content = f"""
     <!DOCTYPE html>
@@ -284,12 +310,26 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
             .signature {{
                 text-align: center;
                 flex: 1;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: flex-end;
             }}
 
             .signature p {{
-                margin: 0;
+                margin: 5px 0 0 0;
                 font-size: 11px;
                 font-weight: 500;
+            }}
+
+            .signature-img {{
+                max-height: 50px;
+                max-width: 120px;
+                height: auto;
+                width: auto;
+                object-fit: contain;
+                margin-bottom: 5px;
+                display: block;
             }}
 
             /* Decorative Shapes - Fixed positioning to prevent overlap */
@@ -369,11 +409,11 @@ def generate_html_certificate(student_name, event_name, event_date, class_sectio
                 </div>
                 <div class="footer">
                     <div class="signature">
-                        <p>_________________________</p>
+                        {f'<img src="{hod_signature_data_url}" alt="HOD Signature" class="signature-img">' if hod_signature_data_url else '<p>_________________________</p>'}
                         <p>HEAD OF DEPARTMENT</p>
                     </div>
                     <div class="signature">
-                        <p>_________________________</p>
+                        {f'<img src="{it_signature_data_url}" alt="IT Convener Signature" class="signature-img">' if it_signature_data_url else '<p>_________________________</p>'}
                         <p>IT CLUB CONVENER</p>
                     </div>
                 </div>
@@ -465,6 +505,31 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         from .certificate_generator import generate_simple_certificate_pdf
         return generate_simple_certificate_pdf(student_name, event_name, event_date, class_section, certificate_type)
     except ImportError:
+        # Load signature images for ReportLab
+        import os
+        import base64
+        from PIL import Image
+        from reportlab.lib.utils import ImageReader
+        
+        # Try to load the signatures
+        hod_signature_path = os.path.join(os.path.dirname(__file__), 'static', 'hod_signature.png')
+        it_signature_path = os.path.join(os.path.dirname(__file__), 'static', 'it_convener_signature.png')
+        
+        hod_signature_img = None
+        it_signature_img = None
+        
+        try:
+            if os.path.exists(hod_signature_path):
+                hod_signature_img = ImageReader(hod_signature_path)
+        except Exception as e:
+            print(f"Could not load HOD signature for ReportLab: {e}")
+            
+        try:
+            if os.path.exists(it_signature_path):
+                it_signature_img = ImageReader(it_signature_path)
+        except Exception as e:
+            print(f"Could not load IT signature for ReportLab: {e}")
+        
         # Create a certificate matching the template design
         width, height = landscape(A4)
         buffer = BytesIO()
@@ -590,18 +655,32 @@ def generate_certificate_pdf_reportlab(student_name, event_name, event_date, cla
         c.setFont("Helvetica", 14)
         c.drawCentredString(width/2, height-420, "Organised by - III BCA 'D' -")
         
-        # Signature sections - Updated to two columns
+        # Signature sections - Updated to two columns with images
         c.setFillColor(black)
         c.setFont("Helvetica", 12)
         
         # Left signature - Head of Department
         left_x = width * 0.3
-        c.drawCentredString(left_x, 80, "_________________________")
+        if hod_signature_img:
+            # Draw signature image (smaller size for better alignment)
+            try:
+                c.drawImage(hod_signature_img, left_x - 40, 90, width=80, height=30, preserveAspectRatio=True)
+            except:
+                c.drawCentredString(left_x, 80, "_________________________")
+        else:
+            c.drawCentredString(left_x, 80, "_________________________")
         c.drawCentredString(left_x, 60, "HEAD OF DEPARTMENT")
         
-        # Right signature - IT Club Convener
+        # Right signature - IT Club Convener  
         right_x = width * 0.7
-        c.drawCentredString(right_x, 80, "_________________________")
+        if it_signature_img:
+            # Draw signature image (smaller size for better alignment)
+            try:
+                c.drawImage(it_signature_img, right_x - 40, 90, width=80, height=30, preserveAspectRatio=True)
+            except:
+                c.drawCentredString(right_x, 80, "_________________________")
+        else:
+            c.drawCentredString(right_x, 80, "_________________________")
         c.drawCentredString(right_x, 60, "IT CLUB CONVENER")
         
         c.save()
