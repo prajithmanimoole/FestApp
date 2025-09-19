@@ -951,7 +951,17 @@ def register_routes(app: Flask) -> None:
 
         # Allowed users (credentials list)
         allowed_list = g.db.execute('SELECT * FROM allowed_users ORDER BY name').fetchall()
-        whitelist_list = g.db.execute('SELECT * FROM whitelist_phones ORDER BY phone').fetchall()
+        
+        # Whitelist with registration status
+        whitelist_list = g.db.execute('''
+            SELECT w.phone, 
+                   CASE WHEN u.phone IS NOT NULL THEN 1 ELSE 0 END as is_registered,
+                   u.name as user_name,
+                   u.id as user_id
+            FROM whitelist_phones w 
+            LEFT JOIN users u ON w.phone = u.phone 
+            ORDER BY w.phone
+        ''').fetchall()
 
         return render_template(
             'admin.html',
@@ -1428,6 +1438,22 @@ def register_routes(app: Flask) -> None:
             g.db.rollback()
             flash(f'Failed to clear data: {e}', 'danger')
         return redirect(url_for('admin'))
+
+    @app.route('/admin/remove-all-whitelist', methods=['POST'])
+    def admin_remove_all_whitelist():
+        user = fetch_current_user()
+        if not user or not user['is_admin']:
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('login'))
+        try:
+            # Remove all whitelist entries
+            g.db.execute('DELETE FROM whitelist_phones')
+            g.db.commit()
+            flash('All whitelist entries removed.', 'success')
+        except Exception as e:
+            g.db.rollback()
+            flash(f'Failed to remove whitelist entries: {e}', 'danger')
+        return redirect(url_for('admin', tab='whitelist'))
 
     @app.route('/admin/participants')
     def admin_participants_list():

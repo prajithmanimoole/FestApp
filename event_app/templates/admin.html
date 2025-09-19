@@ -141,8 +141,22 @@
         </h2>
         <div id="participantsBody" class="accordion-collapse collapse" aria-labelledby="participantsHead" data-bs-parent="#overviewAccordion">
           <div class="accordion-body">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+              <div class="d-flex gap-2">
+                <button class="btn btn-sm btn-outline-primary" onclick="sortParticipantsTable('name')">
+                  <i class="bi bi-sort-alpha-down"></i> Sort by Name
+                </button>
+                <button class="btn btn-sm btn-outline-primary" onclick="sortParticipantsTable('game')">
+                  <i class="bi bi-sort-alpha-down"></i> Sort by Game
+                </button>
+                <button class="btn btn-sm btn-outline-secondary" onclick="resetParticipantsSort()">
+                  <i class="bi bi-arrow-clockwise"></i> Reset
+                </button>
+              </div>
+              <small class="text-muted">Total: <span id="participantsCount">{{ participants_overview|length }}</span> participants</small>
+            </div>
             <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
+              <table class="table table-sm align-middle mb-0" id="participantsTable">
                 <thead><tr><th>Name</th><th>Phone</th><th>Password</th><th>Game</th><th>Team</th><th>Role</th><th class="text-center">Action</th></tr></thead>
                 <tbody>
                   {% for p in participants_overview %}
@@ -366,14 +380,53 @@
       </div>
       <div class="col-lg-6">
         <div class="card clear-box h-100"><div class="card-body">
-          <h5 class="card-title">Whitelist</h5>
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="card-title mb-0">Whitelist</h5>
+            <div class="d-flex gap-2">
+              <button class="btn btn-sm btn-outline-primary" onclick="sortWhitelistTable('phone')">
+                <i class="bi bi-sort-alpha-down"></i> Sort by Phone
+              </button>
+              <button class="btn btn-sm btn-outline-primary" onclick="sortWhitelistTable('status')">
+                <i class="bi bi-sort-alpha-down"></i> Sort by Status
+              </button>
+              <button class="btn btn-sm btn-outline-secondary" onclick="resetWhitelistSort()">
+                <i class="bi bi-arrow-clockwise"></i> Reset
+              </button>
+            </div>
+          </div>
+          <div class="row mb-3">
+            <div class="col-6">
+              <div class="text-center p-2 bg-success bg-opacity-10 rounded">
+                <div class="fw-bold text-success" id="registeredCount">
+                  {{ whitelist_list|selectattr('is_registered')|list|length }}
+                </div>
+                <small class="text-muted">Registered</small>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="text-center p-2 bg-warning bg-opacity-10 rounded">
+                <div class="fw-bold text-warning" id="unregisteredCount">
+                  {{ whitelist_list|rejectattr('is_registered')|list|length }}
+                </div>
+                <small class="text-muted">Not Registered</small>
+              </div>
+            </div>
+          </div>
           <div class="table-responsive" style="max-height:320px; overflow:auto;">
-            <table class="table table-sm align-middle mb-0">
-              <thead><tr><th>Phone</th><th class="text-end">Action</th></tr></thead>
+            <table class="table table-sm align-middle mb-0" id="whitelistTable">
+              <thead><tr><th>Phone</th><th>Status</th><th>Name</th><th class="text-end">Action</th></tr></thead>
               <tbody>
                 {% for w in whitelist_list %}
-                <tr>
+                <tr data-registered="{{ w.is_registered }}" data-phone="{{ w.phone }}">
                   <td>{{ w.phone }}</td>
+                  <td>
+                    {% if w.is_registered %}
+                      <span class="badge bg-success">Registered</span>
+                    {% else %}
+                      <span class="badge bg-warning">Not Registered</span>
+                    {% endif %}
+                  </td>
+                  <td>{{ w.user_name or '-' }}</td>
                   <td class="text-end">
                     <form method="post" class="d-inline" onsubmit="return confirm('Remove {{ w.phone }} from whitelist?');">
                       <input type="hidden" name="form_type" value="remove_whitelist">
@@ -384,10 +437,15 @@
                 </tr>
                 {% endfor %}
                 {% if whitelist_list|length == 0 %}
-                  <tr><td colspan="2" class="text-muted">No whitelist entries.</td></tr>
+                  <tr><td colspan="4" class="text-muted">No whitelist entries.</td></tr>
                 {% endif %}
               </tbody>
             </table>
+          </div>
+          <div class="mt-3 d-flex justify-content-end">
+            <form method="post" action="{{ url_for('admin_remove_all_whitelist') }}" class="d-inline" onsubmit="return confirm('Are you sure you want to remove ALL whitelist entries? This action cannot be undone.');">
+              <button class="btn btn-sm btn-outline-danger">Remove All</button>
+            </form>
           </div>
         </div></div>
       </div>
@@ -620,6 +678,222 @@
     if(input){ input.required = !!isTeam; }
   }
   if(sel){ sel.addEventListener('change', sync); sync(); }
+})();
+</script>
+<script>
+// Participants table sorting functionality
+(function(){
+  let originalOrder = [];
+  let currentSort = null;
+  let sortDirection = 'asc';
+  
+  // Store original order when page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('participantsTable');
+    if (table) {
+      const tbody = table.querySelector('tbody');
+      originalOrder = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('.text-muted'));
+    }
+  });
+  
+  window.sortParticipantsTable = function(column) {
+    const table = document.getElementById('participantsTable');
+    if (!table) return;
+    
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('.text-muted'));
+    
+    // Toggle direction if same column clicked
+    if (currentSort === column) {
+      sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortDirection = 'asc';
+      currentSort = column;
+    }
+    
+    rows.sort((a, b) => {
+      let aValue, bValue;
+      
+      if (column === 'name') {
+        aValue = a.cells[0].textContent.trim().toLowerCase();
+        bValue = b.cells[0].textContent.trim().toLowerCase();
+      } else if (column === 'game') {
+        aValue = a.cells[3].textContent.trim().toLowerCase();
+        bValue = b.cells[3].textContent.trim().toLowerCase();
+        
+        // Put "None" entries at the end when sorting by game
+        if (aValue === 'none' && bValue !== 'none') return sortDirection === 'asc' ? 1 : -1;
+        if (bValue === 'none' && aValue !== 'none') return sortDirection === 'asc' ? -1 : 1;
+      }
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    // Clear tbody and add sorted rows
+    tbody.innerHTML = '';
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Add "No participants" row if needed
+    if (rows.length === 0) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = '<td colspan="7" class="text-muted">No participants yet.</td>';
+      tbody.appendChild(emptyRow);
+    }
+    
+    // Update button states
+    updateSortButtons(column, sortDirection);
+  };
+  
+  window.resetParticipantsSort = function() {
+    const table = document.getElementById('participantsTable');
+    if (!table || originalOrder.length === 0) return;
+    
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    originalOrder.forEach(row => tbody.appendChild(row.cloneNode(true)));
+    
+    // Add "No participants" row if needed
+    if (originalOrder.length === 0) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = '<td colspan="7" class="text-muted">No participants yet.</td>';
+      tbody.appendChild(emptyRow);
+    }
+    
+    currentSort = null;
+    sortDirection = 'asc';
+    updateSortButtons(null, null);
+  };
+  
+  function updateSortButtons(activeColumn, direction) {
+    const buttons = document.querySelectorAll('[onclick*="sortParticipantsTable"]');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      const icon = btn.querySelector('i');
+      if (icon) {
+        icon.className = 'bi bi-sort-alpha-down';
+      }
+    });
+    
+    if (activeColumn) {
+      const activeBtn = document.querySelector(`[onclick*="'${activeColumn}'"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        const icon = activeBtn.querySelector('i');
+        if (icon) {
+          icon.className = direction === 'asc' ? 'bi bi-sort-alpha-down' : 'bi bi-sort-alpha-up';
+        }
+      }
+    }
+  }
+})();
+
+// Whitelist table sorting functionality
+(function(){
+  let whitelistOriginalOrder = [];
+  let whitelistCurrentSort = null;
+  let whitelistSortDirection = 'asc';
+  
+  // Store original order when page loads
+  document.addEventListener('DOMContentLoaded', function() {
+    const table = document.getElementById('whitelistTable');
+    if (table) {
+      const tbody = table.querySelector('tbody');
+      whitelistOriginalOrder = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('.text-muted'));
+    }
+  });
+  
+  window.sortWhitelistTable = function(column) {
+    const table = document.getElementById('whitelistTable');
+    if (!table) return;
+    
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('.text-muted'));
+    
+    // Toggle direction if same column clicked
+    if (whitelistCurrentSort === column) {
+      whitelistSortDirection = whitelistSortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+      whitelistSortDirection = 'asc';
+      whitelistCurrentSort = column;
+    }
+    
+    rows.sort((a, b) => {
+      let aValue, bValue;
+      
+      if (column === 'phone') {
+        aValue = a.cells[0].textContent.trim();
+        bValue = b.cells[0].textContent.trim();
+      } else if (column === 'status') {
+        // Sort by registration status: registered first, then not registered
+        aValue = a.getAttribute('data-registered') === '1' ? 0 : 1;
+        bValue = b.getAttribute('data-registered') === '1' ? 0 : 1;
+      }
+      
+      if (aValue < bValue) return whitelistSortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return whitelistSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    // Clear tbody and add sorted rows
+    tbody.innerHTML = '';
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Add "No entries" row if needed
+    if (rows.length === 0) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = '<td colspan="4" class="text-muted">No whitelist entries.</td>';
+      tbody.appendChild(emptyRow);
+    }
+    
+    // Update button states
+    updateWhitelistSortButtons(column, whitelistSortDirection);
+  };
+  
+  window.resetWhitelistSort = function() {
+    const table = document.getElementById('whitelistTable');
+    if (!table || whitelistOriginalOrder.length === 0) return;
+    
+    const tbody = table.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    whitelistOriginalOrder.forEach(row => tbody.appendChild(row.cloneNode(true)));
+    
+    // Add "No entries" row if needed
+    if (whitelistOriginalOrder.length === 0) {
+      const emptyRow = document.createElement('tr');
+      emptyRow.innerHTML = '<td colspan="4" class="text-muted">No whitelist entries.</td>';
+      tbody.appendChild(emptyRow);
+    }
+    
+    whitelistCurrentSort = null;
+    whitelistSortDirection = 'asc';
+    updateWhitelistSortButtons(null, null);
+  };
+  
+  function updateWhitelistSortButtons(activeColumn, direction) {
+    const buttons = document.querySelectorAll('[onclick*="sortWhitelistTable"]');
+    buttons.forEach(btn => {
+      btn.classList.remove('active');
+      const icon = btn.querySelector('i');
+      if (icon) {
+        icon.className = 'bi bi-sort-alpha-down';
+      }
+    });
+    
+    if (activeColumn) {
+      const activeBtn = document.querySelector(`[onclick*="'${activeColumn}'"]`);
+      if (activeBtn) {
+        activeBtn.classList.add('active');
+        const icon = activeBtn.querySelector('i');
+        if (icon) {
+          icon.className = direction === 'asc' ? 'bi bi-sort-alpha-down' : 'bi bi-sort-alpha-up';
+        }
+      }
+    }
+  }
 })();
 </script>
 {% endblock %}
