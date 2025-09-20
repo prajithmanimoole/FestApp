@@ -15,7 +15,7 @@
         <h6 class="card-title">Participants</h6>
         <ul class="mb-0">
           {% for p in opponents %}
-          <li>{{ p.name }} ({{ p.phone }})</li>
+          <li>{{ p.name }}</li>
           {% endfor %}
         </ul>
       </div>
@@ -31,7 +31,7 @@
         <div class="card h-100 clear-box">
           <div class="card-body">
             <h5 class="card-title mb-1">{{ t.name }}</h5>
-            <div class="text-muted mb-2">Leader: {{ t.leader_name }} ({{ t.leader_phone }})</div>
+            <div class="text-muted mb-2">Leader: {{ t.leader_name }}</div>
             <div>
               <strong>Members:</strong>
               <ul class="mb-0">
@@ -40,7 +40,7 @@
                   <li class="text-muted">No additional members yet</li>
                 {% else %}
                   {% for m in members %}
-                    <li>{{ m.name }} ({{ m.phone }})</li>
+                    <li>{{ m.name }}</li>
                   {% endfor %}
                 {% endif %}
               </ul>
